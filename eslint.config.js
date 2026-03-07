@@ -9,7 +9,7 @@ import yml from 'eslint-plugin-yml';
 export default ts.config([
     {
         name: 'global-ignore',
-        ignores: ['./lib', '**/package-lock.json']
+        ignores: ['./worker-configuration.d.ts', '**/package-lock.json']
     },
     {
         // https://github.com/eslint-stylistic/eslint-stylistic

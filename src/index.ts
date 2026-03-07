@@ -8,13 +8,26 @@ export class MyMCP extends McpAgent {
     });
 
     async init() {
-        this.server.registerTool('hello', {
-            title: 'Hello World',
-            description: 'Say Hello World!'
+        this.server.registerTool('library', {
+            title: 'CellarTracker Library',
+            description: 'Fetches your entire wine library data from CellarTracker'
         },
-        async () => ({
-            content: [{ type: 'text', text: 'Hello World!' }]
-        }));
+        async () => {
+            const username = await this.env.CELLARTRACKER_USERNAME.get();
+            const password = await this.env.CELLARTRACKER_PASSWORD.get();
+            const url = `https://www.cellartracker.com/xlquery.asp?User=${encodeURIComponent(username)}&Password=${encodeURIComponent(password)}&Format=csv`;
+            const response = await fetch(url);
+            if (!response.ok) {
+                return {
+                    content: [{ type: 'text', text: `Failed to fetch data from CellarTracker: ${response.status} ${response.statusText}` }],
+                    isError: true
+                };
+            }
+            const text = await response.text();
+            return {
+                content: [{ type: 'text', text }]
+            };
+        });
     }
 }
 

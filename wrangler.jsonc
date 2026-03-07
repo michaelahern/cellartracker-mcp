@@ -2,7 +2,7 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "cellartracker-mcp",
 	"main": "src/index.ts",
-	"compatibility_date": "2026-02-24",
+	"compatibility_date": "2026-03-06",
 	"compatibility_flags": ["nodejs_compat"],
 	"migrations": [
 		{
@@ -20,5 +20,17 @@
 	},
 	"observability": {
 		"enabled": true
-	}
+	},
+  "secrets_store_secrets": [
+    {
+      "binding": "CELLARTRACKER_USERNAME",
+      "secret_name": "CELLARTRACKER_USERNAME",
+      "store_id": "5dce9ef1ca224e459fb141334a668d82"
+    },
+    {
+      "binding": "CELLARTRACKER_PASSWORD",
+      "secret_name": "CELLARTRACKER_PASSWORD",
+      "store_id": "5dce9ef1ca224e459fb141334a668d82"
+    }
+  ]
 }

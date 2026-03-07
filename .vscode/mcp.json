@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "Cloudflare Docs": {
+      "type": "http",
+      "url": "https://docs.mcp.cloudflare.com/mcp"
+    }
+  }
+}

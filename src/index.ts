@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
+import Papa from 'papaparse';
 
 export class CellarTrackerMCP extends McpAgent {
     server = new McpServer({
@@ -39,13 +40,34 @@ export class CellarTrackerMCP extends McpAgent {
                 };
             }
 
+            // Parse the tab-delimited response
+            const responseText = await response.text();
+            const { data } = Papa.parse<Record<string, string>>(responseText, {
+                delimiter: '\t',
+                header: true,
+                skipEmptyLines: true
+            });
+
+            // 2. Remove unwanted columns and rename columns
+            const COLUMNS_TO_DROP = new Set(['iConsumed', 'iWine', 'WBValue', 'IWC', 'BH', 'WE', 'RH', 'JG', 'GV', 'JK', 'LD', 'CW', 'WFW', 'PR', 'SJ', 'WD', 'JH', 'MFW', 'WWR', 'IWR', 'CHG', 'TT', 'TWF', 'DR', 'FP', 'JM', 'PG', 'WAL']);
+            const COLUMN_RENAMES: Record<string, string> = { RR: 'JD', AG: 'VN' };
+
+            const cleaned = data.map((row) => {
+                const out: Record<string, string> = {};
+                for (const [key, val] of Object.entries(row)) {
+                    if (COLUMNS_TO_DROP.has(key)) continue;
+                    const newKey = COLUMN_RENAMES[key] ?? key;
+                    out[newKey] = val;
+                }
+                return out;
+            });
+
             let text = 'The data below is in tab-delimited format. Some notes on the dataset:\n';
             text += '- The first line contains column headers.\n';
-            text += '- The column header RR should be JD to represent professional wine ratings from Jeb Dunnuck.\n';
             text += '- Each subsequent line represents a record in your CellarTracker data.\n';
             text += '- The columns included depend on the table you are querying (e.g., List, Inventory, etc.).\n';
             text += '- You can parse this data into a structured format (like JSON) for easier analysis.\n\n';
-            text += await response.text();
+            text += cleaned;
 
             return {
                 content: [{ type: 'text', text }]

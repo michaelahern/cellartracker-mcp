@@ -13,13 +13,15 @@
     "lint-fix": "eslint --max-warnings=0 --fix"
   },
   "dependencies": {
-    "agents": "~0.7"
+    "agents": "~0.7",
+    "papaparse": "^5"
   },
   "devDependencies": {
     "@eslint/js": "^10",
     "@eslint/json": "^1",
     "@eslint/markdown": "^7",
     "@stylistic/eslint-plugin": "^5",
+    "@types/papaparse": "^5",
     "eslint": "^10",
     "eslint-plugin-jsonc": "^3",
     "eslint-plugin-yml": "^3",

@@ -67,18 +67,19 @@ export class CellarTrackerMCP extends McpAgent {
                 return out;
             });
 
-            let instructions = 'This dataset is in CSV format. ';
+            let instructions = 'This dataset is in CSV format.\n';
             if (data.length > 20) {
-                instructions += `It is large and contains ${data.length} rows of data. If you have the ability to use the tools defined in these steps, you must follow them in order, no exceptions. `;
-                instructions += 'Step 1: Save the raw CSV text to a temp file using the file creation tool or a bash `cat` heredoc. Do this before writing any analysis code. ';
+                instructions += `This is a large dataset. You must follow the required steps below, no exceptions.\n`;
+                instructions += 'Step 1: Save the raw CSV text to a temp file using the file creation tool or a bash `cat` heredoc. Do this before writing any analysis code.\n';
                 instructions += 'Step 2: Write and execute a separate Python script that reads from the temp csv file using open() or pandas.read_csv(). ';
-                instructions += 'Do NOT embed CSV data inline inside a Python script, heredoc string, or variable assignment. This causes data truncation and silent errors on large datasets. The file write in Step 1 is a required prerequisite — not optional."';
+                instructions += 'Do NOT embed CSV data inline inside a Python script, heredoc string, or variable assignment. This causes data truncation and silent errors on large datasets."';
             }
             instructions += 'The first line of the CSV contains column headers. Wine review scores are in two letter column names (WA = Wine Advocate, WS = Wine Spectator, VM = Vinous, JR = Jancis Robinson, JD = Jeb Dunnuck, CT = CellarTracker, MY = My Score).';
 
             return {
                 content: [
                     {
+                        // Instructions Payload
                         type: 'text',
                         text: instructions,
                         annotations: {
@@ -92,7 +93,16 @@ export class CellarTrackerMCP extends McpAgent {
                         text: Papa.unparse(cleaned, { quotes: false, quoteChar: '"', escapeFormulae: false }),
                         annotations: {
                             audience: ['assistant'],
-                            priority: 0.2
+                            priority: 0.1
+                        }
+                    },
+                    {
+                        // Reminder Payload
+                        type: 'text',
+                        text: instructions,
+                        annotations: {
+                            audience: ['assistant'],
+                            priority: 1.0
                         }
                     }
                 ]

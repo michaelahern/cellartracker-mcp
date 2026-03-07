@@ -48,25 +48,27 @@ export class CellarTrackerMCP extends McpAgent {
                 skipEmptyLines: true
             });
 
-            // 2. Remove unwanted columns and rename columns
-            const COLUMNS_TO_DROP = new Set(['iConsumed', 'iWine', 'WBValue', 'IWC', 'BH', 'WE', 'RH', 'JG', 'GV', 'JK', 'LD', 'CW', 'WFW', 'PR', 'SJ', 'WD', 'JH', 'MFW', 'WWR', 'IWR', 'CHG', 'TT', 'TWF', 'DR', 'FP', 'JM', 'PG', 'WAL']);
-            const COLUMN_RENAMES: Record<string, string> = { RR: 'JD', AG: 'VN' };
+            const COLUMNS_LIST = new Set(['Quantity', 'Pending', 'Size', 'Price', 'Valuation', 'Currency', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation', 'Producer', 'Type', 'Color', 'Category', 'Varietal', 'Designation', 'Vineyard', 'WA', 'WS', 'AG', 'JR', 'RR', 'CT', 'MY', 'Begin', 'End']);
+            const COLUMNS_INVENTORY = new Set(['Location', 'Bin', 'Size', 'Price', 'Valuation', 'Currency', 'StoreName', 'PurchaseDate', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation', 'Producer', 'Type', 'Color', 'Category', 'Varietal', 'Designation', 'Vineyard', 'WA', 'WS', 'AG', 'JR', 'RR', 'CT', 'MY', 'Begin', 'End']);
+            const COLUMNS_PURCHASE = new Set(['PurchaseDate', 'DeliveryDate', 'StoreName', 'Currency', 'Price', 'Quantity', 'Remaining', 'Delivered', 'Size', 'Vintage', 'Wine', 'Locale', 'Type', 'Color', 'Category', 'Producer', 'Varietal', 'Designation', 'Vineyard', 'Country', 'Region', 'SubRegion', 'Appellation']);
+
+            // RR --> JD (Jeb Dunnuck)
+            // AG --> VM (Vinous)
+            const COLUMN_RENAMES: Record<string, string> = { RR: 'JD', AG: 'VM' };
 
             const cleaned = data.map((row) => {
                 const out: Record<string, string> = {};
                 for (const [key, val] of Object.entries(row)) {
-                    if (COLUMNS_TO_DROP.has(key)) continue;
+                    if (table === 'List' && !COLUMNS_LIST.has(key)) continue;
+                    if (table === 'Inventory' && !COLUMNS_INVENTORY.has(key)) continue;
+                    if (table === 'Purchase' && !COLUMNS_PURCHASE.has(key)) continue;
                     const newKey = COLUMN_RENAMES[key] ?? key;
                     out[newKey] = val;
                 }
                 return out;
             });
 
-            let text = 'The data below is in tab-delimited format. Some notes on the dataset:\n';
-            text += '- The first line contains column headers.\n';
-            text += '- Each subsequent line represents a record in your CellarTracker data.\n';
-            text += '- The columns included depend on the table you are querying (e.g., List, Inventory, etc.).\n';
-            text += '- You can parse this data into a structured format (like JSON) for easier analysis.\n\n';
+            let text = 'The dataset below is in tab-delimited format. The first line contains column headers.\n----- Start Tab-delimited dataset -----\n';
             text += Papa.unparse(cleaned, { delimiter: '\t' });
 
             return {

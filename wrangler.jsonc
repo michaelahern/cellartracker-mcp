@@ -9,7 +9,7 @@
   "migrations": [
     {
       "new_sqlite_classes": [
-        "MyMCP"
+        "CellarTrackerMCP"
       ],
       "tag": "v1"
     }
@@ -17,7 +17,7 @@
   "durable_objects": {
     "bindings": [
       {
-        "class_name": "MyMCP",
+        "class_name": "CellarTrackerMCP",
         "name": "MCP_OBJECT"
       }
     ]
@@ -34,6 +34,11 @@
     {
       "binding": "CELLARTRACKER_PASSWORD",
       "secret_name": "CELLARTRACKER_PASSWORD",
+      "store_id": "5dce9ef1ca224e459fb141334a668d82"
+    },
+    {
+      "binding": "CELLARTRACKER_MCP_AUTH_TOKEN",
+      "secret_name": "CELLARTRACKER_MCP_AUTH_TOKEN",
       "store_id": "5dce9ef1ca224e459fb141334a668d82"
     }
   ]

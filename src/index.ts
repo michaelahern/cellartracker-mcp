@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
 
-export class MyMCP extends McpAgent {
+export class CellarTrackerMCP extends McpAgent {
     server = new McpServer({
         name: 'cellartracker',
         title: 'CellarTracker',
@@ -47,11 +47,17 @@ export class MyMCP extends McpAgent {
 }
 
 export default {
-    fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+        const authToken = await env.CELLARTRACKER_MCP_AUTH_TOKEN.get();
+        const authHeader = request.headers.get('Authorization');
+        if (!authHeader || authHeader !== `Bearer ${authToken}`) {
+            return new Response('Unauthorized', { status: 401 });
+        }
+
         const url = new URL(request.url);
 
         if (url.pathname === '/mcp') {
-            return MyMCP.serve('/mcp').fetch(request, env, ctx);
+            return CellarTrackerMCP.serve('/mcp').fetch(request, env, ctx);
         }
 
         return new Response('Not found', { status: 404 });

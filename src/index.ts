@@ -67,16 +67,32 @@ export class CellarTrackerMCP extends McpAgent {
                 return out;
             });
 
-            let text = 'The dataset below is in CSV format. The first line contains column headers. ';
+            let instructions = 'The dataset included is in CSV format. The first line contains column headers. ';
             if (data.length > 20) {
-                text += `This dataset is large and contains ${data.length} rows of data. Always write the CSV to a temp file and use a bash or Python code execution tool to filter, sort, and analyze the data. Do not attempt to process large CSV datasets in-context. `;
+                instructions += `This dataset is large and contains ${data.length} rows of data. Always write the CSV to a temp file and use a bash or Python code execution tool to filter, sort, and analyze the data. Do not attempt to process large CSV datasets in-context. `;
             }
-            text += 'Wine review scores are in two letter column names (WA = Wine Advocate, WS = Wine Spectator, VM = Vinous, JR = Jancis Robinson, JD = Jeb Dunnuck, CT = CellarTracker, MY = My Score).\n';
-            text += '--- Start CSV Dataset ---\n';
-            text += Papa.unparse(cleaned, { quotes: false, quoteChar: '"', escapeFormulae: false });
+            instructions += 'Wine review scores are in two letter column names (WA = Wine Advocate, WS = Wine Spectator, VM = Vinous, JR = Jancis Robinson, JD = Jeb Dunnuck, CT = CellarTracker, MY = My Score).';
 
             return {
-                content: [{ type: 'text', text }]
+                content: [
+                    {
+                        type: 'text',
+                        text: instructions,
+                        annotations: {
+                            audience: ['assistant'],
+                            priority: 1.0
+                        }
+                    },
+                    {
+                        // CSV Dataset Payload
+                        type: 'text',
+                        text: Papa.unparse(cleaned, { quotes: false, quoteChar: '"', escapeFormulae: false }),
+                        annotations: {
+                            audience: ['assistant'],
+                            priority: 0.2
+                        }
+                    }
+                ]
             };
         });
     }

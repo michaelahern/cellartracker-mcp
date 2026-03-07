@@ -6,4 +6,4 @@ An unofficial [CellarTracker](https://www.cellartracker.com/) [Remote MCP Server
 
 [![Deploy to Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/michaelahern/cellartracker-mcp/tree/main)
 
-This will deploy your MCP server to a URL like: `cellartracker.<your-account>.workers.dev/mcp`
+This will deploy your MCP server to a URL like: `cellartracker-mcp.<your-account>.workers.dev/mcp`

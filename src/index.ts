@@ -67,10 +67,10 @@ export class CellarTrackerMCP extends McpAgent {
                 return out;
             });
 
-            let text = 'The dataset below is in tab-delimited format. The first line contains column headers. ';
+            let text = 'The dataset below is in CSV format. The first line contains column headers. ';
             text += 'Wine review scores are in two letter column names (WA = Wine Advocate, WS = Wine Spectator, VM = Vinous, JR = Jancis Robinson, JD = Jeb Dunnuck, CT = CellarTracker, MY = My Score).\n';
-            text += '----- Start Tab-Delimited Dataset -----\n';
-            text += Papa.unparse(cleaned, { delimiter: '\t' });
+            text += '----- Start CSV Dataset -----\n';
+            text += Papa.unparse(cleaned, { quotes: false, quoteChar: '"', escapeFormulae: false });
 
             return {
                 content: [{ type: 'text', text }]

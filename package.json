@@ -28,6 +28,6 @@
     "wrangler": "^4"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   }
 }

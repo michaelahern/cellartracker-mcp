@@ -67,11 +67,14 @@ export class CellarTrackerMCP extends McpAgent {
                 return out;
             });
 
-            let instructions = 'The dataset included is in CSV format. The first line contains column headers. ';
+            let instructions = 'This dataset is in CSV format. ';
             if (data.length > 20) {
-                instructions += `This dataset is large and contains ${data.length} rows of data. Always write the CSV to a temp file and use a bash or Python code execution tool to filter, sort, and analyze the data. Do not attempt to process large CSV datasets in-context. `;
+                instructions += `It is large and contains ${data.length} rows of data. If you have the ability to use the tools defined in these steps, you must follow them in order, no exceptions. `;
+                instructions += 'Step 1: Save the raw CSV text to a temp file using the file creation tool or a bash `cat` heredoc. Do this before writing any analysis code. ';
+                instructions += 'Step 2: Write and execute a separate Python script that reads from the temp csv file using open() or pandas.read_csv(). ';
+                instructions += 'Do NOT embed CSV data inline inside a Python script, heredoc string, or variable assignment. This causes data truncation and silent errors on large datasets. The file write in Step 1 is a required prerequisite — not optional."';
             }
-            instructions += 'Wine review scores are in two letter column names (WA = Wine Advocate, WS = Wine Spectator, VM = Vinous, JR = Jancis Robinson, JD = Jeb Dunnuck, CT = CellarTracker, MY = My Score).';
+            instructions += 'The first line of the CSV contains column headers. Wine review scores are in two letter column names (WA = Wine Advocate, WS = Wine Spectator, VM = Vinous, JR = Jancis Robinson, JD = Jeb Dunnuck, CT = CellarTracker, MY = My Score).';
 
             return {
                 content: [

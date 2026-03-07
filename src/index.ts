@@ -15,99 +15,89 @@ export class CellarTrackerMCP extends McpAgent {
     });
 
     async init() {
-        this.ct_tool('wine', 'Wine List', 'Get your current wine library list from CellarTracker.', 'List');
-        this.ct_tool('wine_bottles', 'Wine Bottles', 'Get your current wine bottle inventory from CellarTracker.', 'Inventory');
-        this.ct_tool('wine_consumed', 'Wine Consumed', 'Get your consumed wine bottles from CellarTracker.', 'Consumed');
-        this.ct_tool('wine_pending', 'Wine Pending Delivery', 'Get your wine inventory pending delivery from CellarTracker.', 'Pending');
-        this.ct_tool('wine_purchases', 'Wine Purchases', 'Get your wine purchase history from CellarTracker.', 'Purchase');
+        this.ct_tool('wine', 'Wine List', 'Get your current wine library list from CellarTracker.');
+        this.ct_tool('wine_bottles', 'Wine Bottles', 'Get your current wine bottle inventory from CellarTracker.');
+        this.ct_tool('wine_consumed', 'Wine Consumed', 'Get your consumed wine bottles from CellarTracker.');
+        this.ct_tool('wine_pending', 'Wine Pending Delivery', 'Get your wine inventory pending delivery from CellarTracker.');
+        this.ct_tool('wine_purchases', 'Wine Purchases', 'Get your wine purchase history from CellarTracker.');
+        this.ct_resource('wine', 'Wine List', 'Your current wine library list from CellarTracker as a CSV file.', 'List');
+        this.ct_resource('wine_bottles', 'Wine Bottles', 'Your current wine bottle inventory from CellarTracker as a CSV file.', 'Inventory');
+        this.ct_resource('wine_consumed', 'Wine Consumed', 'Your consumed wine bottles from CellarTracker as a CSV file.', 'Consumed');
+        this.ct_resource('wine_pending', 'Wine Pending Delivery', 'Your wine inventory pending delivery from CellarTracker as a CSV file.', 'Pending');
+        this.ct_resource('wine_purchases', 'Wine Purchases', 'Your wine purchase history from CellarTracker as a CSV file.', 'Purchase');
     }
 
-    async ct_tool(name: string, title: string, description: string, table: 'List' | 'Inventory' | 'Purchase' | 'Pending' | 'Consumed' | 'Availability') {
+    async ct_tool(name: string, title: string, description: string) {
         this.server.registerTool(name, {
             title: title,
             description: description
         },
         async () => {
-            const username = await this.env.CELLARTRACKER_USERNAME.get();
-            const password = await this.env.CELLARTRACKER_PASSWORD.get();
-            const url = `https://www.cellartracker.com/xlquery.asp?User=${encodeURIComponent(username)}&Password=${encodeURIComponent(password)}&Format=tab&Table=${encodeURIComponent(table)}`;
-            const response = await fetch(url);
-
-            if (!response.ok) {
-                return {
-                    content: [{ type: 'text', text: `Failed to fetch data from CellarTracker: ${response.status} ${response.statusText}` }],
-                    isError: true
-                };
-            }
-
-            // Parse the tab-delimited response
-            const responseText = await response.text();
-            const { data } = Papa.parse<Record<string, string>>(responseText, {
-                delimiter: '\t',
-                header: true,
-                skipEmptyLines: true
-            });
-
-            const COLUMNS_LIST = new Set(['Quantity', 'Pending', 'Size', 'Price', 'Valuation', 'Currency', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation', 'Producer', 'Type', 'Color', 'Category', 'Varietal', 'Designation', 'Vineyard', 'WA', 'WS', 'AG', 'JR', 'RR', 'CT', 'MY', 'BeginConsume', 'EndConsume']);
-            const COLUMNS_INVENTORY = new Set(['Location', 'Bin', 'Size', 'Currency', 'Valuation', 'Price', 'StoreName', 'PurchaseDate', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation', 'Producer', 'Type', 'Color', 'Category', 'Varietal', 'Designation', 'Vineyard', 'WA', 'WS', 'AG', 'JR', 'RR', 'CT', 'MY', 'BeginConsume', 'EndConsume']);
-            const COLUMNS_PURCHASE = new Set(['PurchaseDate', 'DeliveryDate', 'StoreName', 'Currency', 'Price', 'Quantity', 'Remaining', 'Delivered', 'Size', 'Vintage', 'Wine', 'Type', 'Color', 'Category', 'Producer', 'Varietal', 'Designation', 'Vineyard', 'Country', 'Region', 'SubRegion', 'Appellation']);
-            const COLUMNS_PENDING = new Set(['PurchaseDate', 'DeliveryDate', 'StoreName', 'Currency', 'Price', 'Quantity', 'Remaining', 'Delivered', 'Size', 'Vintage', 'Wine', 'Type', 'Color', 'Category', 'Producer', 'Varietal', 'Designation', 'Vineyard', 'Country', 'Region', 'SubRegion', 'Appellation']);
-            const COLUMN_RENAMES: Record<string, string> = { RR: 'JD', AG: 'VM' };
-
-            const cleaned = data.map((row) => {
-                const out: Record<string, string> = {};
-                for (const [key, val] of Object.entries(row)) {
-                    if (table === 'List' && !COLUMNS_LIST.has(key)) continue;
-                    if (table === 'Inventory' && !COLUMNS_INVENTORY.has(key)) continue;
-                    if (table === 'Purchase' && !COLUMNS_PURCHASE.has(key)) continue;
-                    if (table === 'Pending' && !COLUMNS_PENDING.has(key)) continue;
-                    const newKey = COLUMN_RENAMES[key] ?? key;
-                    out[newKey] = val;
-                }
-                return out;
-            });
-
-            let instructions = 'This dataset is in CSV format.\n';
-            if (data.length > 20) {
-                instructions += `This is a large dataset. You must follow the required steps below, no exceptions.\n`;
-                instructions += 'Step 1: Save the raw CSV text to a temp file using the file creation tool or a bash `cat` heredoc. Do this before writing any analysis code.\n';
-                instructions += 'Step 2: Write and execute a separate Python script that reads from the temp csv file using open() or pandas.read_csv(). ';
-                instructions += 'Do NOT embed CSV data inline inside a Python script, heredoc string, or variable assignment. This causes data truncation and silent errors on large datasets."';
-            }
-            instructions += 'The first line of the CSV contains column headers. Wine review scores are in two letter column names (WA = Wine Advocate, WS = Wine Spectator, VM = Vinous, JR = Jancis Robinson, JD = Jeb Dunnuck, CT = CellarTracker, MY = My Score).';
-
             return {
                 content: [
                     {
-                        // Instructions Payload
-                        type: 'text',
-                        text: instructions,
-                        annotations: {
-                            audience: ['assistant'],
-                            priority: 1.0
-                        }
-                    },
-                    {
-                        // CSV Dataset Payload
-                        type: 'text',
-                        text: Papa.unparse(cleaned, { quotes: false, quoteChar: '"', escapeFormulae: false }),
-                        annotations: {
-                            audience: ['assistant'],
-                            priority: 0.1
-                        }
-                    },
-                    {
-                        // Reminder Payload
-                        type: 'text',
-                        text: instructions,
-                        annotations: {
-                            audience: ['assistant'],
-                            priority: 1.0
-                        }
+                        type: 'resource_link',
+                        uri: `cellartracker://${name}`,
+                        name: title,
+                        description: description,
+                        mimeType: 'text/csv'
                     }
                 ]
             };
         });
+    }
+
+    private async ct_csv(table: 'List' | 'Inventory' | 'Purchase' | 'Pending' | 'Consumed' | 'Availability'): Promise<{ csv: string; rowCount: number }> {
+        const username = await this.env.CELLARTRACKER_USERNAME.get();
+        const password = await this.env.CELLARTRACKER_PASSWORD.get();
+        const url = `https://www.cellartracker.com/xlquery.asp?User=${encodeURIComponent(username)}&Password=${encodeURIComponent(password)}&Format=tab&Table=${encodeURIComponent(table)}`;
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch data from CellarTracker: ${response.status} ${response.statusText}`);
+        }
+
+        const responseText = await response.text();
+        const { data } = Papa.parse<Record<string, string>>(responseText, {
+            delimiter: '\t',
+            header: true,
+            skipEmptyLines: true
+        });
+
+        const COLUMNS_LIST = new Set(['Quantity', 'Pending', 'Size', 'Price', 'Valuation', 'Currency', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation', 'Producer', 'Type', 'Color', 'Category', 'Varietal', 'Designation', 'Vineyard', 'WA', 'WS', 'AG', 'JR', 'RR', 'CT', 'MY', 'BeginConsume', 'EndConsume']);
+        const COLUMNS_INVENTORY = new Set(['Location', 'Bin', 'Size', 'Currency', 'Valuation', 'Price', 'StoreName', 'PurchaseDate', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation', 'Producer', 'Type', 'Color', 'Category', 'Varietal', 'Designation', 'Vineyard', 'WA', 'WS', 'AG', 'JR', 'RR', 'CT', 'MY', 'BeginConsume', 'EndConsume']);
+        const COLUMNS_PURCHASE = new Set(['PurchaseDate', 'DeliveryDate', 'StoreName', 'Currency', 'Price', 'Quantity', 'Remaining', 'Delivered', 'Size', 'Vintage', 'Wine', 'Type', 'Color', 'Category', 'Producer', 'Varietal', 'Designation', 'Vineyard', 'Country', 'Region', 'SubRegion', 'Appellation']);
+        const COLUMNS_PENDING = new Set(['PurchaseDate', 'DeliveryDate', 'StoreName', 'Currency', 'Price', 'Quantity', 'Remaining', 'Delivered', 'Size', 'Vintage', 'Wine', 'Type', 'Color', 'Category', 'Producer', 'Varietal', 'Designation', 'Vineyard', 'Country', 'Region', 'SubRegion', 'Appellation']);
+        const COLUMN_RENAMES: Record<string, string> = { RR: 'JD', AG: 'VM' };
+
+        const cleaned = data.map((row) => {
+            const out: Record<string, string> = {};
+            for (const [key, val] of Object.entries(row)) {
+                if (table === 'List' && !COLUMNS_LIST.has(key)) continue;
+                if (table === 'Inventory' && !COLUMNS_INVENTORY.has(key)) continue;
+                if (table === 'Purchase' && !COLUMNS_PURCHASE.has(key)) continue;
+                if (table === 'Pending' && !COLUMNS_PENDING.has(key)) continue;
+                const newKey = COLUMN_RENAMES[key] ?? key;
+                out[newKey] = val;
+            }
+            return out;
+        });
+
+        return { csv: Papa.unparse(cleaned, { quotes: false, quoteChar: '"', escapeFormulae: false }), rowCount: data.length };
+    }
+
+    async ct_resource(name: string, title: string, description: string, table: 'List' | 'Inventory' | 'Purchase' | 'Pending' | 'Consumed' | 'Availability') {
+        this.server.registerResource(
+            name,
+            `cellartracker://${name}`,
+            { title, description, mimeType: 'text/csv' },
+            async (uri) => {
+                const { csv } = await this.ct_csv(table);
+                return {
+                    contents: [{ uri: uri.toString(), mimeType: 'text/csv', text: csv }]
+                };
+            }
+        );
     }
 }
 

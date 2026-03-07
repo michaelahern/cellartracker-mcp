@@ -48,12 +48,10 @@ export class CellarTrackerMCP extends McpAgent {
                 skipEmptyLines: true
             });
 
-            const COLUMNS_LIST = new Set(['Quantity', 'Pending', 'Size', 'Price', 'Valuation', 'Currency', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation', 'Producer', 'Type', 'Color', 'Category', 'Varietal', 'Designation', 'Vineyard', 'WA', 'WS', 'AG', 'JR', 'RR', 'CT', 'MY', 'Begin', 'End']);
-            const COLUMNS_INVENTORY = new Set(['Location', 'Bin', 'Size', 'Price', 'Valuation', 'Currency', 'StoreName', 'PurchaseDate', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation', 'Producer', 'Type', 'Color', 'Category', 'Varietal', 'Designation', 'Vineyard', 'WA', 'WS', 'AG', 'JR', 'RR', 'CT', 'MY', 'Begin', 'End']);
-            const COLUMNS_PURCHASE = new Set(['PurchaseDate', 'DeliveryDate', 'StoreName', 'Currency', 'Price', 'Quantity', 'Remaining', 'Delivered', 'Size', 'Vintage', 'Wine', 'Locale', 'Type', 'Color', 'Category', 'Producer', 'Varietal', 'Designation', 'Vineyard', 'Country', 'Region', 'SubRegion', 'Appellation']);
-
-            // RR --> JD (Jeb Dunnuck)
-            // AG --> VM (Vinous)
+            const COLUMNS_LIST = new Set(['Quantity', 'Pending', 'Size', 'Price', 'Valuation', 'Currency', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation', 'Producer', 'Type', 'Color', 'Category', 'Varietal', 'Designation', 'Vineyard', 'WA', 'WS', 'AG', 'JR', 'RR', 'CT', 'MY', 'BeginConsume', 'EndConsume']);
+            const COLUMNS_INVENTORY = new Set(['Location', 'Bin', 'Size', 'Currency', 'Valuation', 'Price', 'StoreName', 'PurchaseDate', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation', 'Producer', 'Type', 'Color', 'Category', 'Varietal', 'Designation', 'Vineyard', 'WA', 'WS', 'AG', 'JR', 'RR', 'CT', 'MY', 'BeginConsume', 'EndConsume']);
+            const COLUMNS_PURCHASE = new Set(['PurchaseDate', 'DeliveryDate', 'StoreName', 'Currency', 'Price', 'Quantity', 'Remaining', 'Delivered', 'Size', 'Vintage', 'Wine', 'Type', 'Color', 'Category', 'Producer', 'Varietal', 'Designation', 'Vineyard', 'Country', 'Region', 'SubRegion', 'Appellation']);
+            const COLUMNS_PENDING = new Set(['PurchaseDate', 'DeliveryDate', 'StoreName', 'Currency', 'Price', 'Quantity', 'Remaining', 'Delivered', 'Size', 'Vintage', 'Wine', 'Type', 'Color', 'Category', 'Producer', 'Varietal', 'Designation', 'Vineyard', 'Country', 'Region', 'SubRegion', 'Appellation']);
             const COLUMN_RENAMES: Record<string, string> = { RR: 'JD', AG: 'VM' };
 
             const cleaned = data.map((row) => {
@@ -62,13 +60,16 @@ export class CellarTrackerMCP extends McpAgent {
                     if (table === 'List' && !COLUMNS_LIST.has(key)) continue;
                     if (table === 'Inventory' && !COLUMNS_INVENTORY.has(key)) continue;
                     if (table === 'Purchase' && !COLUMNS_PURCHASE.has(key)) continue;
+                    if (table === 'Pending' && !COLUMNS_PENDING.has(key)) continue;
                     const newKey = COLUMN_RENAMES[key] ?? key;
                     out[newKey] = val;
                 }
                 return out;
             });
 
-            let text = 'The dataset below is in tab-delimited format. The first line contains column headers.\n----- Start Tab-delimited dataset -----\n';
+            let text = 'The dataset below is in tab-delimited format. The first line contains column headers. ';
+            text += 'Wine review scores are in two letter column names (WA = Wine Advocate, WS = Wine Spectator, VM = Vinous, JR = Jancis Robinson, JD = Jeb Dunnuck, CT = CellarTracker, MY = My Score).\n';
+            text += '----- Start Tab-Delimited Dataset -----\n';
             text += Papa.unparse(cleaned, { delimiter: '\t' });
 
             return {

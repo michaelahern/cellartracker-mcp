@@ -67,7 +67,7 @@ export class CellarTrackerMCP extends McpAgent {
             text += '- Each subsequent line represents a record in your CellarTracker data.\n';
             text += '- The columns included depend on the table you are querying (e.g., List, Inventory, etc.).\n';
             text += '- You can parse this data into a structured format (like JSON) for easier analysis.\n\n';
-            text += cleaned;
+            text += Papa.unparse(cleaned, { delimiter: '\t' });
 
             return {
                 content: [{ type: 'text', text }]

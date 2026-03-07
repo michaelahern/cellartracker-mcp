@@ -1,26 +1,30 @@
 {
-	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "cellartracker-mcp",
-	"main": "src/index.ts",
-	"compatibility_date": "2026-03-06",
-	"compatibility_flags": ["nodejs_compat"],
-	"migrations": [
-		{
-			"new_sqlite_classes": ["MyMCP"],
-			"tag": "v1"
-		}
-	],
-	"durable_objects": {
-		"bindings": [
-			{
-				"class_name": "MyMCP",
-				"name": "MCP_OBJECT"
-			}
-		]
-	},
-	"observability": {
-		"enabled": true
-	},
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cellartracker-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-03-06",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "migrations": [
+    {
+      "new_sqlite_classes": [
+        "MyMCP"
+      ],
+      "tag": "v1"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "MyMCP",
+        "name": "MCP_OBJECT"
+      }
+    ]
+  },
+  "observability": {
+    "enabled": true
+  },
   "secrets_store_secrets": [
     {
       "binding": "CELLARTRACKER_USERNAME",

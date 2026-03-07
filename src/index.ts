@@ -29,7 +29,7 @@ export class CellarTrackerMCP extends McpAgent {
         async () => {
             const username = await this.env.CELLARTRACKER_USERNAME.get();
             const password = await this.env.CELLARTRACKER_PASSWORD.get();
-            const url = `https://www.cellartracker.com/xlquery.asp?User=${encodeURIComponent(username)}&Password=${encodeURIComponent(password)}&Format=csv&Table=${encodeURIComponent(table)}`;
+            const url = `https://www.cellartracker.com/xlquery.asp?User=${encodeURIComponent(username)}&Password=${encodeURIComponent(password)}&Format=tab&Table=${encodeURIComponent(table)}`;
             const response = await fetch(url);
 
             if (!response.ok) {
@@ -39,8 +39,16 @@ export class CellarTrackerMCP extends McpAgent {
                 };
             }
 
+            let text = 'The data below is in tab-delimited format. Some notes on the dataset:\n';
+            text += '- The first line contains column headers.\n';
+            text += '- The column header RR should be JD to represent professional wine ratings from Jeb Dunnuck.\n';
+            text += '- Each subsequent line represents a record in your CellarTracker data.\n';
+            text += '- The columns included depend on the table you are querying (e.g., List, Inventory, etc.).\n';
+            text += '- You can parse this data into a structured format (like JSON) for easier analysis.\n\n';
+            text += await response.text();
+
             return {
-                content: [{ type: 'text', text: await response.text() }]
+                content: [{ type: 'text', text }]
             };
         });
     }

@@ -1,0 +1,33 @@
+{
+  "name": "cellartracker-mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm run lint && tsc --noEmit",
+    "cf-typegen": "wrangler types",
+    "clean": "rimraf ./lib",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "lint": "eslint --max-warnings=0",
+    "lint-fix": "eslint --max-warnings=0 --fix"
+  },
+  "dependencies": {
+    "agents": "~0.7"
+  },
+  "devDependencies": {
+    "@eslint/json": "^0",
+    "@eslint/markdown": "^7",
+    "@stylistic/eslint-plugin": "^5",
+    "eslint": "^9",
+    "eslint-plugin-jsonc": "^2",
+    "eslint-plugin-yml": "^1",
+    "rimraf": "^6",
+    "typescript": "~5.9",
+    "typescript-eslint": "^8",
+    "wrangler": "^4"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

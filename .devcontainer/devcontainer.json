@@ -1,0 +1,12 @@
+{
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-24",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "bierner.markdown-preview-github-styles",
+        "dbaeumer.vscode-eslint",
+        "github.vscode-github-actions"
+      ]
+    }
+  }
+}

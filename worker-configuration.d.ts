@@ -7,6 +7,7 @@ declare namespace Cloudflare {
 		durableNamespaces: "CellarTrackerMCP";
 	}
 	interface Env {
+		CELLARTRACKER_DB: D1Database;
 		CELLARTRACKER_USERNAME: SecretsStoreSecret;
 		CELLARTRACKER_PASSWORD: SecretsStoreSecret;
 		CELLARTRACKER_MCP_AUTH_TOKEN: SecretsStoreSecret;

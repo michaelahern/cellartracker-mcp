@@ -22,6 +22,16 @@
       }
     ]
   },
+  // D1 database for wine inventory storage.
+  // Create with: wrangler d1 create cellartracker-mcp
+  // Then fill in the database_id below.
+  "d1_databases": [
+    {
+      "binding": "CELLARTRACKER_DB",
+      "database_name": "cellartracker-mcp",
+      "database_id": "18901d00-c8bc-426a-afdd-f511ffb2731d"
+    }
+  ],
   "observability": {
     "enabled": true
   },

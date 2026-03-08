@@ -123,8 +123,8 @@ export async function getCellarStats(db: D1Database) {
             SELECT
                 CASE
                     WHEN EndConsume < CAST(strftime('%Y', 'now') AS INTEGER) THEN 'past'
-                    WHEN BeginConsume <= CAST(strftime('%Y', 'now') AS INTEGER) AND EndConsume >= CAST(strftime('%Y', 'now') AS INTEGER) THEN 'current'
-                    WHEN BeginConsume > CAST(strftime('%Y', 'now') AS INTEGER) THEN CAST(BeginConsume AS TEXT)
+                    WHEN BeginConsume <= CAST(strftime('%Y', 'now') AS INTEGER) AND EndConsume >= CAST(strftime('%Y', 'now') AS INTEGER) THEN 'now'
+                    WHEN BeginConsume > CAST(strftime('%Y', 'now') AS INTEGER) THEN 'starting ' || CAST(BeginConsume AS TEXT)
                     ELSE 'unknown'
                 END AS window,
                 COALESCE(SUM(Quantity), 0) AS bottles_in_cellar,
@@ -132,7 +132,6 @@ export async function getCellarStats(db: D1Database) {
             FROM wines
             WHERE BeginConsume IS NOT NULL AND EndConsume IS NOT NULL
             GROUP BY window
-            ORDER BY window ASC
         `),
         db.prepare(`
             SELECT Type AS type, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
@@ -143,7 +142,9 @@ export async function getCellarStats(db: D1Database) {
             LIMIT 20
         `),
         db.prepare(`
-            SELECT Varietal AS varietal, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
+            SELECT Varietal AS varietal, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total,
+                ROUND(AVG(CASE WHEN VM IS NOT NULL THEN VM END), 1) AS avg_score_vm, ROUND(AVG(CASE WHEN JD IS NOT NULL THEN JD END), 1) AS avg_score_jd,
+                ROUND(AVG(CASE WHEN WA IS NOT NULL THEN WA END), 1) AS avg_score_wa, ROUND(AVG(CASE WHEN CT IS NOT NULL THEN CT END), 1) AS avg_score_ct
             FROM wines
             WHERE Varietal IS NOT NULL AND Varietal != '' AND Varietal != 'Unknown'
             GROUP BY Varietal
@@ -151,7 +152,9 @@ export async function getCellarStats(db: D1Database) {
             LIMIT 20
         `),
         db.prepare(`
-            SELECT Producer AS producer, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
+            SELECT Producer AS producer, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total,
+                ROUND(AVG(CASE WHEN VM IS NOT NULL THEN VM END), 1) AS avg_score_vm, ROUND(AVG(CASE WHEN JD IS NOT NULL THEN JD END), 1) AS avg_score_jd,
+                ROUND(AVG(CASE WHEN WA IS NOT NULL THEN WA END), 1) AS avg_score_wa, ROUND(AVG(CASE WHEN CT IS NOT NULL THEN CT END), 1) AS avg_score_ct
             FROM wines
             WHERE Producer IS NOT NULL AND Producer != '' AND Producer != 'Unknown'
             GROUP BY Producer
@@ -203,22 +206,15 @@ export async function getCellarStats(db: D1Database) {
     const subRegions = results[8] ?? { results: [] };
     const appellations = results[9] ?? { results: [] };
 
-    // const windowRows = drinkingWindows.results as { window: string; bottles_in_cellar: number; bottles_total: number }[];
-    // const drinkingWindow: { window: string; bottles_in_cellar: number; bottles_total: number }[] = [];
-    // for (const row of windowRows) {
-    //     if (row.window !== 'unknown') {
-    //         drinkingWindow.push({
-    //             window: row.window === 'past' || row.window === 'current' ? row.window : `${row.window}+`,
-    //             bottles_in_cellar: row.bottles_in_cellar,
-    //             bottles_total: row.bottles_total
-    //         });
-    //     }
-    // }
+    const WINDOW_ORDER: Record<string, number> = { past: 0, now: 1 };
+    const windowSortKey = (w: string) => WINDOW_ORDER[w] ?? 2;
+    const drinkingWindow = (drinkingWindows.results as { window: string }[])
+        .sort((a, b) => windowSortKey(a.window) - windowSortKey(b.window));
 
     return {
         totals: totals.results[0],
         locations: locations.results,
-        drinking_window: drinkingWindows.results,
+        drinking_window: drinkingWindow,
         top_types: types.results,
         top_varietals: varietals.results,
         top_producers: producers.results,

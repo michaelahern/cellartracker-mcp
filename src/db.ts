@@ -122,7 +122,7 @@ export async function getCellarStats(db: D1Database) {
         db.prepare(`
             SELECT
                 CASE
-                    WHEN EndConsume < CAST(strftime('%Y', 'now') AS INTEGER) THEN 'past'
+                    WHEN EndConsume < CAST(strftime('%Y', 'now') AS INTEGER) THEN 'matured'
                     WHEN BeginConsume <= CAST(strftime('%Y', 'now') AS INTEGER) AND EndConsume >= CAST(strftime('%Y', 'now') AS INTEGER) THEN 'now'
                     WHEN BeginConsume > CAST(strftime('%Y', 'now') AS INTEGER) THEN 'starting ' || CAST(BeginConsume AS TEXT)
                     ELSE 'unknown'
@@ -132,6 +132,7 @@ export async function getCellarStats(db: D1Database) {
             FROM wines
             WHERE BeginConsume IS NOT NULL AND EndConsume IS NOT NULL
             GROUP BY window
+            ORDER BY window ASC
         `),
         db.prepare(`
             SELECT Type AS type, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
@@ -206,15 +207,10 @@ export async function getCellarStats(db: D1Database) {
     const subRegions = results[8] ?? { results: [] };
     const appellations = results[9] ?? { results: [] };
 
-    const WINDOW_ORDER: Record<string, number> = { past: 0, now: 1 };
-    const windowSortKey = (w: string) => WINDOW_ORDER[w] ?? 2;
-    const drinkingWindow = (drinkingWindows.results as { window: string }[])
-        .sort((a, b) => windowSortKey(a.window) - windowSortKey(b.window));
-
     return {
         totals: totals.results[0],
         locations: locations.results,
-        drinking_window: drinkingWindow,
+        drinking_window: drinkingWindows.results,
         top_types: types.results,
         top_varietals: varietals.results,
         top_producers: producers.results,

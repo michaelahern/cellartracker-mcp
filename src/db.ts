@@ -107,9 +107,8 @@ export async function getCellarStats(db: D1Database) {
         `),
         db.prepare(`
             SELECT w.Varietal AS varietal, COALESCE(SUM(w.Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(w.Quantity), 0) + COALESCE(SUM(w.Pending), 0) AS bottles_total,
-                ROUND(AVG(CASE WHEN w.VM IS NOT NULL THEN w.VM END), 1) AS avg_score_vm, ROUND(AVG(CASE WHEN w.JD IS NOT NULL THEN w.JD END), 1) AS avg_score_jd,
-                ROUND(AVG(CASE WHEN w.WA IS NOT NULL THEN w.WA END), 1) AS avg_score_wa, ROUND(AVG(CASE WHEN w.CT IS NOT NULL THEN w.CT END), 1) AS avg_score_ct,
-                ROUND(AVG(CASE WHEN twp.Score IS NOT NULL THEN twp.Score END), 1) AS avg_score_twp
+                ROUND(AVG(CASE WHEN w.JD IS NOT NULL THEN w.JD END), 1) AS avg_score_jd, ROUND(AVG(CASE WHEN twp.Score IS NOT NULL THEN twp.Score END), 1) AS avg_score_twp,
+                ROUND(AVG(CASE WHEN w.VM IS NOT NULL THEN w.VM END), 1) AS avg_score_vm, ROUND(AVG(CASE WHEN w.WA IS NOT NULL THEN w.WA END), 1) AS avg_score_wa, 
             FROM wines w
             LEFT JOIN (SELECT iWine, Score, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'The Wine Palate') twp ON w.iWine = twp.iWine AND twp.rn = 1
             WHERE w.Varietal IS NOT NULL AND w.Varietal != '' AND w.Varietal != 'Unknown'
@@ -119,9 +118,8 @@ export async function getCellarStats(db: D1Database) {
         `),
         db.prepare(`
             SELECT w.Producer AS producer, COALESCE(SUM(w.Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(w.Quantity), 0) + COALESCE(SUM(w.Pending), 0) AS bottles_total,
-                ROUND(AVG(CASE WHEN w.VM IS NOT NULL THEN w.VM END), 1) AS avg_score_vm, ROUND(AVG(CASE WHEN w.JD IS NOT NULL THEN w.JD END), 1) AS avg_score_jd,
-                ROUND(AVG(CASE WHEN w.WA IS NOT NULL THEN w.WA END), 1) AS avg_score_wa, ROUND(AVG(CASE WHEN w.CT IS NOT NULL THEN w.CT END), 1) AS avg_score_ct,
-                ROUND(AVG(CASE WHEN twp.Score IS NOT NULL THEN twp.Score END), 1) AS avg_score_twp
+                ROUND(AVG(CASE WHEN w.JD IS NOT NULL THEN w.JD END), 1) AS avg_score_jd, ROUND(AVG(CASE WHEN twp.Score IS NOT NULL THEN twp.Score END), 1) AS avg_score_twp,
+                ROUND(AVG(CASE WHEN w.VM IS NOT NULL THEN w.VM END), 1) AS avg_score_vm, ROUND(AVG(CASE WHEN w.WA IS NOT NULL THEN w.WA END), 1) AS avg_score_wa
             FROM wines w
             LEFT JOIN (SELECT iWine, Score, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'The Wine Palate') twp ON w.iWine = twp.iWine AND twp.rn = 1
             WHERE w.Producer IS NOT NULL AND w.Producer != '' AND w.Producer != 'Unknown'
@@ -301,68 +299,71 @@ export async function searchWines(db: D1Database, filters: WineSearchFilters) {
     const params: unknown[] = [];
 
     if (filters.vintage_min !== undefined) {
-        conditions.push('Vintage >= ?');
+        conditions.push('w.Vintage >= ?');
         params.push(filters.vintage_min);
     }
     if (filters.vintage_max !== undefined) {
-        conditions.push('Vintage <= ?');
+        conditions.push('w.Vintage <= ?');
         params.push(filters.vintage_max);
     }
     if (filters.country) {
-        conditions.push('Country LIKE ?');
+        conditions.push('w.Country LIKE ?');
         params.push(`%${filters.country}%`);
     }
     if (filters.region) {
-        conditions.push('Region LIKE ?');
+        conditions.push('w.Region LIKE ?');
         params.push(`%${filters.region}%`);
     }
     if (filters.sub_region) {
-        conditions.push('SubRegion LIKE ?');
+        conditions.push('w.SubRegion LIKE ?');
         params.push(`%${filters.sub_region}%`);
     }
     if (filters.appellation) {
-        conditions.push('Appellation LIKE ?');
+        conditions.push('w.Appellation LIKE ?');
         params.push(`%${filters.appellation}%`);
     }
     if (filters.producer) {
-        conditions.push('Producer LIKE ?');
+        conditions.push('w.Producer LIKE ?');
         params.push(`%${filters.producer}%`);
     }
     if (filters.type) {
-        conditions.push('Type LIKE ?');
+        conditions.push('w.Type LIKE ?');
         params.push(`%${filters.type}%`);
     }
     if (filters.varietal) {
-        conditions.push('Varietal LIKE ?');
+        conditions.push('w.Varietal LIKE ?');
         params.push(`%${filters.varietal}%`);
     }
     if (filters.min_score !== undefined) {
-        conditions.push('(CT >= ? OR WA >= ? OR VM >= ? OR JD >= ? OR MY >= ?)');
-        params.push(filters.min_score, filters.min_score, filters.min_score, filters.min_score, filters.min_score);
+        conditions.push('(w.JD >= ? OR twp.Score >= ? OR w.VM >= ? OR w.WA >= ?)');
+        params.push(filters.min_score, filters.min_score, filters.min_score, filters.min_score);
     }
     if (filters.in_drinking_window === true) {
-        conditions.push('BeginConsume IS NOT NULL AND EndConsume IS NOT NULL AND BeginConsume <= CAST(strftime(\'%Y\', \'now\') AS INTEGER) AND EndConsume >= CAST(strftime(\'%Y\', \'now\') AS INTEGER)');
+        conditions.push('w.BeginConsume IS NOT NULL AND w.EndConsume IS NOT NULL AND w.BeginConsume <= CAST(strftime(\'%Y\', \'now\') AS INTEGER) AND w.EndConsume >= CAST(strftime(\'%Y\', \'now\') AS INTEGER)');
     }
     if (filters.in_stock_only === true) {
-        conditions.push('Quantity > 0');
+        conditions.push('w.Quantity > 0');
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const sql = `
-        SELECT Wine AS wine, Vintage AS vintage, Size AS size,
-            COALESCE(Quantity, 0) AS bottles_in_cellar, COALESCE(Pending, 0) AS bottles_pending_delivery, COALESCE(Quantity, 0) + COALESCE(Pending, 0) AS bottles_total,
-            Country AS country, Region AS region, SubRegion AS sub_region, Appellation AS appellation,
-            Producer AS producer, Type AS type, Varietal AS varietal, Designation AS designation, Vineyard AS vineyard,
-            VM AS score_vm, JD AS score_jd, WA AS score_wa, CT AS score_ct, MY AS score_my,
-            BeginConsume AS begin_consume_year, EndConsume AS end_consume_year,
+        SELECT w.Wine AS wine, w.Vintage AS vintage, w.Size AS size,
+            COALESCE(w.Quantity, 0) AS bottles_in_cellar, COALESCE(w.Pending, 0) AS bottles_pending_delivery, COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS bottles_total,
+            w.Country AS country, w.Region AS region, w.SubRegion AS sub_region, w.Appellation AS appellation,
+            w.Producer AS producer, w.Type AS type, w.Varietal AS varietal, w.Designation AS designation, w.Vineyard AS vineyard,
+            w.JD AS score_jd, twp.Score AS score_twp, twp.ReviewText AS review_twp, w.VM AS score_vm, w.WA AS score_wa, wa.ReviewText AS review_wa,
+            w.BeginConsume AS begin_consume_year, w.EndConsume AS end_consume_year,
             CASE
-                WHEN BeginConsume IS NULL OR EndConsume IS NULL THEN NULL
-                WHEN EndConsume < CAST(strftime('%Y', 'now') AS INTEGER) THEN 'past'
-                WHEN BeginConsume <= CAST(strftime('%Y', 'now') AS INTEGER) AND EndConsume >= CAST(strftime('%Y', 'now') AS INTEGER) THEN 'now'
-                WHEN BeginConsume > CAST(strftime('%Y', 'now') AS INTEGER) THEN 'future'
+                WHEN w.BeginConsume IS NULL OR w.EndConsume IS NULL THEN NULL
+                WHEN w.EndConsume < CAST(strftime('%Y', 'now') AS INTEGER) THEN 'past'
+                WHEN w.BeginConsume <= CAST(strftime('%Y', 'now') AS INTEGER) AND w.EndConsume >= CAST(strftime('%Y', 'now') AS INTEGER) THEN 'now'
+                WHEN w.BeginConsume > CAST(strftime('%Y', 'now') AS INTEGER) THEN 'future'
             END AS drinking_window_status
-        FROM wines ${where}
-        ORDER BY Wine, Vintage
+        FROM wines w
+        LEFT JOIN (SELECT iWine, Score, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'The Wine Palate') twp ON w.iWine = twp.iWine AND twp.rn = 1
+        LEFT JOIN (SELECT iWine, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'Wine Advocate') wa ON w.iWine = wa.iWine AND wa.rn = 1
+        ${where}
+        ORDER BY w.Wine, w.Vintage
         LIMIT 100`;
 
     return db.prepare(sql).bind(...params).all();

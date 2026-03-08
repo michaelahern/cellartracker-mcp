@@ -56,7 +56,7 @@ export class CellarTrackerMCP extends McpAgent {
                 producer: z.string().optional().describe('Filter by producer name (partial match)'),
                 type: z.string().optional().describe('Filter by wine type, e.g. Red, White, Sparkling (partial match)'),
                 varietal: z.string().optional().describe('Filter by varietal/grape (partial match)'),
-                min_score: z.number().optional().describe('Minimum score from any critic (VM, JD, WA, CT, MY)'),
+                min_score: z.number().optional().describe('Minimum score from any critic (JD, TWP, VM, WA)'),
                 in_drinking_window: z.boolean().optional().describe('Filter by whether the bottle is currently in its drinking window')
             }
         }, async (params) => {
@@ -78,7 +78,7 @@ export class CellarTrackerMCP extends McpAgent {
                 producer: z.string().optional().describe('Filter by producer name (partial match)'),
                 type: z.string().optional().describe('Filter by wine type, e.g. Red, White, Sparkling (partial match)'),
                 varietal: z.string().optional().describe('Filter by varietal/grape (partial match)'),
-                min_score: z.number().optional().describe('Minimum score from any critic (VM, JD, WA, CT, MY)'),
+                min_score: z.number().optional().describe('Minimum score from any critic (JD, TWP, VM, WA)'),
                 in_drinking_window: z.boolean().optional().describe('Filter by whether the wine is currently in its drinking window'),
                 in_stock_only: z.boolean().optional().describe('Only show wines in stock')
             }

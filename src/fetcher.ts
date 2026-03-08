@@ -16,23 +16,24 @@ const COLUMNS_WINES = new Set([
     'WA', 'AG', 'RR', 'CT', 'MY', 'BeginConsume', 'EndConsume'
 ]);
 
-export interface FetchResult {
-    rows: Record<string, unknown>[];
-    diagnostics: {
-        responseBytes: number;
-        parsedRows: number;
-        parseErrors: number;
-        firstError?: string | undefined;
-    };
+async function fetchCellarTrackerTable(username: string, password: string, table: string): Promise<string> {
+    const url = `https://www.cellartracker.com/xlquery.asp?User=${encodeURIComponent(username)}&Password=${encodeURIComponent(password)}&Format=tab&Table=${encodeURIComponent(table)}`;
+    const response = await fetch(url);
+
+    if (!response.ok) {
+        throw new Error(`Failed to fetch data from CellarTracker: ${response.status} ${response.statusText}`);
+    }
+
+    return response.text();
 }
 
-function parseTSV(responseText: string, columns: Set<string>): FetchResult {
+function parseCellarTrackerTable(responseText: string, columns: Set<string>): FetchResult {
     const { data, errors } = Papa.parse<Record<string, unknown>>(responseText, {
         delimiter: '\t',
+        quoteChar: '\0',
         header: true,
-        skipEmptyLines: true,
         dynamicTyping: true,
-        quoteChar: '\0'
+        skipEmptyLines: true
     });
 
     const rows = data.map((row) => {
@@ -56,23 +57,22 @@ function parseTSV(responseText: string, columns: Set<string>): FetchResult {
     };
 }
 
-async function fetchTSV(username: string, password: string, table: string): Promise<string> {
-    const url = `https://www.cellartracker.com/xlquery.asp?User=${encodeURIComponent(username)}&Password=${encodeURIComponent(password)}&Format=tab&Table=${encodeURIComponent(table)}`;
-    const response = await fetch(url);
-
-    if (!response.ok) {
-        throw new Error(`Failed to fetch data from CellarTracker: ${response.status} ${response.statusText}`);
-    }
-
-    return response.text();
+export interface FetchResult {
+    rows: Record<string, unknown>[];
+    diagnostics: {
+        responseBytes: number;
+        parsedRows: number;
+        parseErrors: number;
+        firstError?: string | undefined;
+    };
 }
 
 export async function fetchBottles(username: string, password: string): Promise<FetchResult> {
-    const responseText = await fetchTSV(username, password, 'Inventory');
-    return parseTSV(responseText, COLUMNS_BOTTLES);
+    const table = await fetchCellarTrackerTable(username, password, 'Inventory');
+    return parseCellarTrackerTable(table, COLUMNS_BOTTLES);
 }
 
 export async function fetchWines(username: string, password: string): Promise<FetchResult> {
-    const responseText = await fetchTSV(username, password, 'List');
-    return parseTSV(responseText, COLUMNS_WINES);
+    const table = await fetchCellarTrackerTable(username, password, 'List');
+    return parseCellarTrackerTable(table, COLUMNS_WINES);
 }

@@ -1,9 +1,10 @@
 import Papa from 'papaparse';
 
 const COLUMN_RENAMES: Record<string, string> = { RR: 'JD', AG: 'VM' };
+const DATE_COLUMNS = new Set(['ReviewDate', 'PurchaseDate']);
 const SCORE_COLUMNS = new Set(['WA', 'AG', 'RR', 'CT', 'MY', 'Score']);
 
-const NAMED_ENTITIES: Record<string, string> = {
+const NAMED_HTML_ENTITIES: Record<string, string> = {
     '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': '\''
 };
 
@@ -12,7 +13,15 @@ function decodeHtmlEntities(text: string): string {
     return text
         .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
         .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex as string, 16)))
-        .replace(/&(?:amp|lt|gt|quot|apos);/g, m => NAMED_ENTITIES[m] ?? m);
+        .replace(/&(?:amp|lt|gt|quot|apos);/g, m => NAMED_HTML_ENTITIES[m] ?? m);
+}
+
+function normalizeDate(val: unknown): string | null {
+    if (typeof val !== 'string' || val === '') return null;
+    const parts = val.split('/');
+    if (parts.length !== 3) return val;
+    const [month = '', day = '', year = ''] = parts;
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 
 function normalizeScore(val: unknown): number | null {
@@ -72,7 +81,8 @@ function parseCellarTrackerTable(responseText: string, columns: Set<string>): Fe
         for (const [key, val] of Object.entries(row as Record<string, unknown>)) {
             if (!columns.has(key)) continue;
             const newKey = COLUMN_RENAMES[key] ?? key;
-            out[newKey] = SCORE_COLUMNS.has(key) ? normalizeScore(val) : val === 'Unknown' ? null : val;
+            const normalized = SCORE_COLUMNS.has(key) ? normalizeScore(val) : val === 'Unknown' ? null : val;
+            out[newKey] = DATE_COLUMNS.has(key) ? normalizeDate(normalized) : normalized;
         }
         return out;
     });

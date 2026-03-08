@@ -106,22 +106,26 @@ export async function getCellarStats(db: D1Database) {
             LIMIT 20
         `),
         db.prepare(`
-            SELECT Varietal AS varietal, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total,
-                ROUND(AVG(CASE WHEN VM IS NOT NULL THEN VM END), 1) AS avg_score_vm, ROUND(AVG(CASE WHEN JD IS NOT NULL THEN JD END), 1) AS avg_score_jd,
-                ROUND(AVG(CASE WHEN WA IS NOT NULL THEN WA END), 1) AS avg_score_wa, ROUND(AVG(CASE WHEN CT IS NOT NULL THEN CT END), 1) AS avg_score_ct
-            FROM wines
-            WHERE Varietal IS NOT NULL AND Varietal != '' AND Varietal != 'Unknown'
-            GROUP BY Varietal
+            SELECT w.Varietal AS varietal, COALESCE(SUM(w.Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(w.Quantity), 0) + COALESCE(SUM(w.Pending), 0) AS bottles_total,
+                ROUND(AVG(CASE WHEN w.VM IS NOT NULL THEN w.VM END), 1) AS avg_score_vm, ROUND(AVG(CASE WHEN w.JD IS NOT NULL THEN w.JD END), 1) AS avg_score_jd,
+                ROUND(AVG(CASE WHEN w.WA IS NOT NULL THEN w.WA END), 1) AS avg_score_wa, ROUND(AVG(CASE WHEN w.CT IS NOT NULL THEN w.CT END), 1) AS avg_score_ct,
+                ROUND(AVG(CASE WHEN twp.Score IS NOT NULL THEN twp.Score END), 1) AS avg_score_twp
+            FROM wines w
+            LEFT JOIN (SELECT iWine, Score, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'The Wine Palate') twp ON w.iWine = twp.iWine AND twp.rn = 1
+            WHERE w.Varietal IS NOT NULL AND w.Varietal != '' AND w.Varietal != 'Unknown'
+            GROUP BY w.Varietal
             ORDER BY bottles_total DESC
             LIMIT 20
         `),
         db.prepare(`
-            SELECT Producer AS producer, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total,
-                ROUND(AVG(CASE WHEN VM IS NOT NULL THEN VM END), 1) AS avg_score_vm, ROUND(AVG(CASE WHEN JD IS NOT NULL THEN JD END), 1) AS avg_score_jd,
-                ROUND(AVG(CASE WHEN WA IS NOT NULL THEN WA END), 1) AS avg_score_wa, ROUND(AVG(CASE WHEN CT IS NOT NULL THEN CT END), 1) AS avg_score_ct
-            FROM wines
-            WHERE Producer IS NOT NULL AND Producer != '' AND Producer != 'Unknown'
-            GROUP BY Producer
+            SELECT w.Producer AS producer, COALESCE(SUM(w.Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(w.Quantity), 0) + COALESCE(SUM(w.Pending), 0) AS bottles_total,
+                ROUND(AVG(CASE WHEN w.VM IS NOT NULL THEN w.VM END), 1) AS avg_score_vm, ROUND(AVG(CASE WHEN w.JD IS NOT NULL THEN w.JD END), 1) AS avg_score_jd,
+                ROUND(AVG(CASE WHEN w.WA IS NOT NULL THEN w.WA END), 1) AS avg_score_wa, ROUND(AVG(CASE WHEN w.CT IS NOT NULL THEN w.CT END), 1) AS avg_score_ct,
+                ROUND(AVG(CASE WHEN twp.Score IS NOT NULL THEN twp.Score END), 1) AS avg_score_twp
+            FROM wines w
+            LEFT JOIN (SELECT iWine, Score, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'The Wine Palate') twp ON w.iWine = twp.iWine AND twp.rn = 1
+            WHERE w.Producer IS NOT NULL AND w.Producer != '' AND w.Producer != 'Unknown'
+            GROUP BY w.Producer
             ORDER BY bottles_total DESC
             LIMIT 20
         `),

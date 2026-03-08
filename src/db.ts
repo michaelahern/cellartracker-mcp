@@ -111,6 +111,14 @@ export async function getCellarStats(db: D1Database) {
             FROM wines
         `),
         db.prepare(`
+            SELECT Location AS location, COUNT(*) AS bottle_count
+            FROM bottles
+            WHERE Location IS NOT NULL AND Location != ''
+            GROUP BY Location
+            ORDER BY bottle_count DESC
+            LIMIT 100
+        `),
+        db.prepare(`
             SELECT Varietal AS varietal, SUM(Quantity) AS bottle_count
             FROM wines
             WHERE Quantity > 0 AND Varietal IS NOT NULL AND Varietal != '' AND Varietal != 'Unknown'
@@ -184,14 +192,15 @@ export async function getCellarStats(db: D1Database) {
     ]);
 
     const totals = results[0] ?? { results: [] };
-    const varietals = results[1] ?? { results: [] };
-    const producers = results[2] ?? { results: [] };
-    const drinkingWindows = results[3] ?? { results: [] };
-    const types = results[4] ?? { results: [] };
-    const countries = results[5] ?? { results: [] };
-    const regions = results[6] ?? { results: [] };
-    const subRegions = results[7] ?? { results: [] };
-    const appellations = results[8] ?? { results: [] };
+    const locations = results[1] ?? { results: [] };
+    const varietals = results[2] ?? { results: [] };
+    const producers = results[3] ?? { results: [] };
+    const drinkingWindows = results[4] ?? { results: [] };
+    const types = results[5] ?? { results: [] };
+    const countries = results[6] ?? { results: [] };
+    const regions = results[7] ?? { results: [] };
+    const subRegions = results[8] ?? { results: [] };
+    const appellations = results[9] ?? { results: [] };
 
     const windowRows = drinkingWindows.results as { window: string; bottle_count: number }[];
     let past = 0;
@@ -205,6 +214,7 @@ export async function getCellarStats(db: D1Database) {
 
     return {
         totals: totals.results[0],
+        locations: locations.results,
         drinking_window: { past, current, future_by_year: futureByYear },
         top_types: types.results,
         top_varietals: varietals.results,

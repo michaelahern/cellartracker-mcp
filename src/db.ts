@@ -108,7 +108,7 @@ export async function getCellarStats(db: D1Database) {
         db.prepare(`
             SELECT w.Varietal AS varietal, COALESCE(SUM(w.Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(w.Quantity), 0) + COALESCE(SUM(w.Pending), 0) AS bottles_total,
                 ROUND(AVG(CASE WHEN w.JD IS NOT NULL THEN w.JD END), 1) AS avg_score_jd, ROUND(AVG(CASE WHEN twp.Score IS NOT NULL THEN twp.Score END), 1) AS avg_score_twp,
-                ROUND(AVG(CASE WHEN w.VM IS NOT NULL THEN w.VM END), 1) AS avg_score_vm, ROUND(AVG(CASE WHEN w.WA IS NOT NULL THEN w.WA END), 1) AS avg_score_wa, 
+                ROUND(AVG(CASE WHEN w.VM IS NOT NULL THEN w.VM END), 1) AS avg_score_vm, ROUND(AVG(CASE WHEN w.WA IS NOT NULL THEN w.WA END), 1) AS avg_score_wa
             FROM wines w
             LEFT JOIN (SELECT iWine, Score, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'The Wine Palate') twp ON w.iWine = twp.iWine AND twp.rn = 1
             WHERE w.Varietal IS NOT NULL AND w.Varietal != '' AND w.Varietal != 'Unknown'
@@ -246,8 +246,8 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
         params.push(`%${filters.varietal}%`);
     }
     if (filters.min_score !== undefined) {
-        conditions.push('(b.CT >= ? OR b.WA >= ? OR b.VM >= ? OR b.JD >= ? OR b.MY >= ?)');
-        params.push(filters.min_score, filters.min_score, filters.min_score, filters.min_score, filters.min_score);
+        conditions.push('(w.JD >= ? OR twp.Score >= ? OR w.VM >= ? OR w.WA >= ?)');
+        params.push(filters.min_score, filters.min_score, filters.min_score, filters.min_score);
     }
     if (filters.in_drinking_window === true) {
         conditions.push('b.BeginConsume IS NOT NULL AND b.EndConsume IS NOT NULL AND b.BeginConsume <= CAST(strftime(\'%Y\', \'now\') AS INTEGER) AND b.EndConsume >= CAST(strftime(\'%Y\', \'now\') AS INTEGER)');
@@ -260,7 +260,7 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
             COUNT(*) AS bottles_at_location, COALESCE(w.Quantity, 0) AS bottles_in_cellar, COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS bottles_total,
             b.Country AS country, b.Region AS region, b.SubRegion AS sub_region, b.Appellation AS appellation,
             b.Producer AS producer, b.Type AS type, b.Varietal AS varietal, b.Designation AS designation, b.Vineyard AS vineyard,
-            b.VM AS score_vm, b.JD AS score_jd, b.WA AS score_wa, b.CT AS score_ct, b.MY AS score_my,
+            w.JD AS score_jd, twp.Score AS score_twp, twp.ReviewText AS review_twp, w.VM AS score_vm, w.WA AS score_wa, wa.ReviewText AS review_wa,
             b.BeginConsume AS begin_consume_year, b.EndConsume AS end_consume_year,
             CASE
                 WHEN b.BeginConsume IS NULL OR b.EndConsume IS NULL THEN NULL
@@ -270,6 +270,8 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
             END AS drinking_window_status
         FROM bottles b
         LEFT JOIN wines w ON b.iWine = w.iWine
+        LEFT JOIN (SELECT iWine, Score, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'The Wine Palate') twp ON w.iWine = twp.iWine AND twp.rn = 1
+        LEFT JOIN (SELECT iWine, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'Wine Advocate') wa ON w.iWine = wa.iWine AND wa.rn = 1
         ${where}
         GROUP BY b.iWine, b.Location
         ORDER BY b.Wine, b.Vintage, b.Location

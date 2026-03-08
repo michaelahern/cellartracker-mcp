@@ -49,12 +49,7 @@ async function fetchCellarTrackerTable(username: string, password: string, table
     }
 
     const buffer = await response.arrayBuffer();
-    const bytes = new Uint8Array(buffer);
-    // ISO-8859-1: each byte value maps directly to its Unicode codepoint
-    let text = '';
-    for (const byte of bytes) {
-        text += String.fromCharCode(byte);
-    }
+    const text = new TextDecoder('windows-1252').decode(buffer);
     return decodeHtmlEntities(text);
 }
 

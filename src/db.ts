@@ -7,7 +7,7 @@ export async function initSchema(db: D1Database) {
             'CREATE TABLE IF NOT EXISTS wines (iWine INTEGER PRIMARY KEY, Quantity INTEGER, Pending INTEGER, Size TEXT, Vintage INTEGER, Wine TEXT, Country TEXT, Region TEXT, SubRegion TEXT, Appellation TEXT, Producer TEXT, Type TEXT, Color TEXT, Category TEXT, Varietal TEXT, Designation TEXT, Vineyard TEXT, WA INTEGER, VM INTEGER, JD INTEGER, CT INTEGER, MY INTEGER, BeginConsume INTEGER, EndConsume INTEGER)'
         ),
         db.prepare(
-            'CREATE TABLE IF NOT EXISTS reviews (iReview INTEGER PRIMARY KEY, iWine INTEGER, Publication TEXT, ReviewDate TEXT, Reviewer TEXT, Score TEXT, ReviewText TEXT, ReviewURL TEXT, BeginConsume INTEGER, EndConsume INTEGER)'
+            'CREATE TABLE IF NOT EXISTS reviews (iReview TEXT PRIMARY KEY, iWine TEXT, Publication TEXT, ReviewDate TEXT, Reviewer TEXT, Score TEXT, ReviewText TEXT, ReviewURL TEXT, BeginConsume TEXT, EndConsume TEXT)'
         )
     ]);
 }

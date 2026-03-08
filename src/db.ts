@@ -274,14 +274,14 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const sql = filters.location
-        ? `
-        SELECT b.Location AS location, GROUP_CONCAT(DISTINCT b.Bin) AS bins, b.Size AS size, b.Vintage AS vintage, b.Wine AS wine,
-            b.Country AS country, b.Region AS region, b.SubRegion AS sub_region, b.Appellation AS appellation,
-            b.Producer AS producer, b.Type AS type, b.Varietal AS varietal, b.Designation AS designation, b.Vineyard AS vineyard,
+    const sql = `
+        SELECT b.Location AS location, (SELECT GROUP_CONCAT(b2.Bin || ' (x' || COUNT(*) || ')', '; ') FROM bottles b2 WHERE b2.iWine = b.iWine AND b2.Location = b.Location GROUP BY b2.Bin) AS bins,
             COUNT(*) AS bottles_at_location,
             COALESCE(w.Quantity, 0) AS bottles_in_cellar,
             COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS bottles_total,
+            b.Size AS size, b.Vintage AS vintage, b.Wine AS wine,
+            b.Country AS country, b.Region AS region, b.SubRegion AS sub_region, b.Appellation AS appellation,
+            b.Producer AS producer, b.Type AS type, b.Varietal AS varietal, b.Designation AS designation, b.Vineyard AS vineyard,
             b.WA AS score_wa, b.VM AS score_vm, b.JD AS score_jd, b.CT AS score_ct, b.MY AS score_my,
             b.BeginConsume AS begin_consume_year, b.EndConsume AS end_consume_year
         FROM bottles b
@@ -290,21 +290,21 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
         GROUP BY b.iWine, b.Location
         ORDER BY b.Wine, b.Vintage, b.Location
         LIMIT 200
-        `
-        : `
-        SELECT b.Location AS location, b.Bin AS bin, b.Size AS size, b.Vintage AS vintage, b.Wine AS wine,
-            b.Country AS country, b.Region AS region, b.SubRegion AS sub_region, b.Appellation AS appellation,
-            b.Producer AS producer, b.Type AS type, b.Varietal AS varietal, b.Designation AS designation, b.Vineyard AS vineyard,
-            COALESCE(w.Quantity, 0) AS bottles_in_cellar,
-            COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS bottles_total,
-            b.WA AS score_wa, b.VM AS score_vm, b.JD AS score_jd, b.CT AS score_ct, b.MY AS score_my,
-            b.BeginConsume AS begin_consume_year, b.EndConsume AS end_consume_year
-        FROM bottles b
-        LEFT JOIN wines w ON b.iWine = w.iWine
-        ${where}
-        ORDER BY b.Wine, b.Vintage, b.Location, b.Bin
-        LIMIT 200
         `;
+        // : `
+        // SELECT b.Location AS location, b.Bin AS bin, b.Size AS size, b.Vintage AS vintage, b.Wine AS wine,
+        //     b.Country AS country, b.Region AS region, b.SubRegion AS sub_region, b.Appellation AS appellation,
+        //     b.Producer AS producer, b.Type AS type, b.Varietal AS varietal, b.Designation AS designation, b.Vineyard AS vineyard,
+        //     COALESCE(w.Quantity, 0) AS bottles_in_cellar,
+        //     COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS bottles_total,
+        //     b.WA AS score_wa, b.VM AS score_vm, b.JD AS score_jd, b.CT AS score_ct, b.MY AS score_my,
+        //     b.BeginConsume AS begin_consume_year, b.EndConsume AS end_consume_year
+        // FROM bottles b
+        // LEFT JOIN wines w ON b.iWine = w.iWine
+        // ${where}
+        // ORDER BY b.Wine, b.Vintage, b.Location, b.Bin
+        // LIMIT 200
+        // `;
 
     return db.prepare(sql).bind(...params).all();
 }

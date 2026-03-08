@@ -101,10 +101,17 @@ export class CellarTrackerMCP extends McpAgent {
             await truncateAndInsertBottles(db, bottles);
             await truncateAndInsertWines(db, wines);
 
+            const counts = await db.batch([
+                db.prepare('SELECT COUNT(*) AS count FROM bottles'),
+                db.prepare('SELECT COUNT(*) AS count FROM wines')
+            ]);
+            const bottleCount = (counts[0]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
+            const wineCount = (counts[1]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
+
             return {
                 content: [{
                     type: 'text' as const,
-                    text: `Successfully refreshed inventory data. Imported ${wines.length} wines and ${bottles.length} bottles at ${new Date().toISOString()}.`
+                    text: `Refreshed inventory data at ${new Date().toISOString()}.\nFetched: ${wines.length} wines, ${bottles.length} bottles.\nStored in DB: ${wineCount} wines, ${bottleCount} bottles.`
                 }]
             };
         });

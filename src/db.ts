@@ -1,40 +1,7 @@
 export async function initSchema(db: D1Database) {
-    await db.exec(`
-        CREATE TABLE IF NOT EXISTS wines (
-            iWine TEXT PRIMARY KEY,
-            Producer TEXT,
-            Wine TEXT,
-            Vintage REAL,
-            Varietal TEXT,
-            Location TEXT,
-            Bin TEXT,
-            Quantity REAL,
-            Size TEXT,
-            Price REAL,
-            Valuation REAL,
-            Currency TEXT,
-            Country TEXT,
-            Region TEXT,
-            SubRegion TEXT,
-            Appellation TEXT,
-            Type TEXT,
-            Color TEXT,
-            Category TEXT,
-            Designation TEXT,
-            Vineyard TEXT,
-            StoreName TEXT,
-            PurchaseDate TEXT,
-            WA REAL,
-            WS REAL,
-            VM REAL,
-            JR TEXT,
-            JD REAL,
-            CT REAL,
-            MY REAL,
-            BeginConsume REAL,
-            EndConsume REAL
-        )
-    `);
+    await db.prepare(
+        'CREATE TABLE IF NOT EXISTS wines (iWine TEXT PRIMARY KEY, Producer TEXT, Wine TEXT, Vintage REAL, Varietal TEXT, Location TEXT, Bin TEXT, Quantity REAL, Size TEXT, Price REAL, Valuation REAL, Currency TEXT, Country TEXT, Region TEXT, SubRegion TEXT, Appellation TEXT, Type TEXT, Color TEXT, Category TEXT, Designation TEXT, Vineyard TEXT, StoreName TEXT, PurchaseDate TEXT, WA REAL, WS REAL, VM REAL, JR TEXT, JD REAL, CT REAL, MY REAL, BeginConsume REAL, EndConsume REAL)'
+    ).run();
 }
 
 export async function truncateAndInsert(db: D1Database, rows: Record<string, unknown>[]) {

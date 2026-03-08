@@ -39,7 +39,6 @@ export class CellarTrackerMCP extends McpAgent {
                 varietal: z.string().optional().describe('Filter by varietal/grape (partial match)'),
                 vintage_min: z.number().optional().describe('Minimum vintage year'),
                 vintage_max: z.number().optional().describe('Maximum vintage year'),
-                location: z.string().optional().describe('Filter by storage location (partial match)'),
                 min_score: z.number().optional().describe('Minimum score from any critic (CT, WA, WS, VM, JD, MY)'),
                 in_stock_only: z.boolean().optional().describe('Only show wines in stock (default: true)')
             }

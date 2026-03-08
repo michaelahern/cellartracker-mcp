@@ -40,6 +40,11 @@ const COLUMNS_WINES = new Set([
     'WA', 'AG', 'RR', 'CT', 'MY', 'BeginConsume', 'EndConsume'
 ]);
 
+const COLUMNS_REVIEWS = new Set([
+    'iReview', 'iWine', 'Publication', 'ReviewDate',
+    'Reviewer', 'Score', 'ReviewText', 'ReviewURL', 'Begin', 'End'
+]);
+
 async function fetchCellarTrackerTable(username: string, password: string, table: string): Promise<string> {
     const url = `https://www.cellartracker.com/xlquery.asp?User=${encodeURIComponent(username)}&Password=${encodeURIComponent(password)}&Format=tab&Table=${encodeURIComponent(table)}`;
     const response = await fetch(url);
@@ -101,4 +106,9 @@ export async function fetchBottles(username: string, password: string): Promise<
 export async function fetchWines(username: string, password: string): Promise<FetchResult> {
     const table = await fetchCellarTrackerTable(username, password, 'List');
     return parseCellarTrackerTable(table, COLUMNS_WINES);
+}
+
+export async function fetchReviews(username: string, password: string): Promise<FetchResult> {
+    const table = await fetchCellarTrackerTable(username, password, 'ProReview');
+    return parseCellarTrackerTable(table, COLUMNS_REVIEWS);
 }

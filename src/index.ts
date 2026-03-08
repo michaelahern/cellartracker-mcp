@@ -1,8 +1,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
 import { z } from 'zod';
-import { initSchema, truncateAndInsertBottles, truncateAndInsertWines, searchWines, searchBottles, getCellarStats } from './db.js';
-import { fetchBottles, fetchWines } from './fetcher.js';
+import { initSchema, truncateAndInsertBottles, truncateAndInsertWines, truncateAndInsertReviews, searchWines, searchBottles, getCellarStats } from './db.js';
+import { fetchBottles, fetchWines, fetchReviews } from './fetcher.js';
 
 function formatResults(results: unknown[], label: string): { content: { type: 'text'; text: string }[] } {
     if (results.length === 0) {
@@ -97,32 +97,41 @@ export class CellarTrackerMCP extends McpAgent {
             const password = await this.env.CELLARTRACKER_PASSWORD.get();
 
             await initSchema(db);
-            const [bottleResult, wineResult] = await Promise.all([
+            const [bottleResult, wineResult, reviewResult] = await Promise.all([
                 fetchBottles(username, password),
-                fetchWines(username, password)
+                fetchWines(username, password),
+                fetchReviews(username, password)
             ]);
             await truncateAndInsertBottles(db, bottleResult.rows);
             await truncateAndInsertWines(db, wineResult.rows);
+            await truncateAndInsertReviews(db, reviewResult.rows);
 
             const counts = await db.batch([
                 db.prepare('SELECT COUNT(*) AS count FROM bottles'),
-                db.prepare('SELECT COUNT(*) AS count FROM wines')
+                db.prepare('SELECT COUNT(*) AS count FROM wines'),
+                db.prepare('SELECT COUNT(*) AS count FROM reviews')
             ]);
             const bottleDbCount = (counts[0]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
             const wineDbCount = (counts[1]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
+            const reviewDbCount = (counts[2]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
 
             const wd = wineResult.diagnostics;
             const bd = bottleResult.diagnostics;
+            const rd = reviewResult.diagnostics;
             const lines = [
                 `Refreshed inventory data at ${new Date().toISOString()}.`,
                 `Wines: ${wd.responseBytes} bytes fetched, ${wd.parsedRows} rows parsed, ${wineDbCount} stored in DB.`,
-                `Bottles: ${bd.responseBytes} bytes fetched, ${bd.parsedRows} rows parsed, ${bottleDbCount} stored in DB.`
+                `Bottles: ${bd.responseBytes} bytes fetched, ${bd.parsedRows} rows parsed, ${bottleDbCount} stored in DB.`,
+                `Reviews: ${rd.responseBytes} bytes fetched, ${rd.parsedRows} rows parsed, ${reviewDbCount} stored in DB.`
             ];
             if (wd.parseErrors > 0) {
                 lines.push(`Wine parse errors: ${wd.parseErrors}. First: ${wd.firstError ?? 'unknown'}`);
             }
             if (bd.parseErrors > 0) {
                 lines.push(`Bottle parse errors: ${bd.parseErrors}. First: ${bd.firstError ?? 'unknown'}`);
+            }
+            if (rd.parseErrors > 0) {
+                lines.push(`Review parse errors: ${rd.parseErrors}. First: ${rd.firstError ?? 'unknown'}`);
             }
 
             return {

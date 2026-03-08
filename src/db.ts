@@ -112,11 +112,11 @@ export async function getCellarStats(db: D1Database) {
             FROM wines
         `),
         db.prepare(`
-            SELECT Location AS location, COUNT(*) AS bottle_count
+            SELECT Location AS location, COUNT(*) AS bottles_total
             FROM bottles
             WHERE Location IS NOT NULL AND Location != ''
             GROUP BY Location
-            ORDER BY bottle_count DESC
+            ORDER BY bottles_total DESC
             LIMIT 100
         `),
         db.prepare(`
@@ -128,7 +128,7 @@ export async function getCellarStats(db: D1Database) {
                     WHEN BeginConsume IS NOT NULL AND BeginConsume > ? THEN CAST(BeginConsume AS TEXT)
                     ELSE 'unknown'
                 END AS window,
-                COUNT(*) AS bottle_count
+                COUNT(*) AS bottles_total
             FROM bottles
             WHERE BeginConsume IS NOT NULL OR EndConsume IS NOT NULL
             GROUP BY window
@@ -204,19 +204,20 @@ export async function getCellarStats(db: D1Database) {
     const appellations = results[9] ?? { results: [] };
 
     const windowRows = drinkingWindows.results as { window: string; bottle_count: number }[];
-    let past = 0;
-    let current = 0;
-    const futureByYear: { year: number; bottle_count: number }[] = [];
+    const drinkingWindowMap: Record<string, number> = {};
     for (const row of windowRows) {
-        if (row.window === 'past') past = row.bottle_count;
-        else if (row.window === 'current') current = row.bottle_count;
-        else if (row.window !== 'unknown') futureByYear.push({ year: Number(row.window), bottle_count: row.bottle_count });
+        if (row.window === 'past' || row.window === 'current') {
+            drinkingWindowMap[row.window] = row.bottle_count;
+        }
+        else if (row.window !== 'unknown') {
+            drinkingWindowMap[`${row.window}+`] = row.bottle_count;
+        }
     }
 
     return {
         totals: totals.results[0],
         locations: locations.results,
-        drinking_window: { past, current, future_by_year: futureByYear },
+        drinking_window: drinkingWindowMap,
         top_types: types.results,
         top_varietals: varietals.results,
         top_producers: producers.results,

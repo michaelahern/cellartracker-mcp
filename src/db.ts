@@ -221,27 +221,70 @@ export async function getCellarStats(db: D1Database) {
     };
 }
 
-export async function getDrinkingWindows(db: D1Database, withinYears: number) {
-    const currentYear = new Date().getFullYear();
-    const targetYear = currentYear + withinYears;
-
-    return db.prepare(`
-        SELECT * FROM wines
-        WHERE Quantity > 0
-            AND BeginConsume IS NOT NULL
-            AND EndConsume IS NOT NULL
-            AND BeginConsume <= ?
-            AND EndConsume >= ?
-        ORDER BY EndConsume ASC
-        LIMIT 100
-    `).bind(targetYear, currentYear).all();
+export interface BottleSearchFilters {
+    location?: string | undefined;
+    country?: string | undefined;
+    region?: string | undefined;
+    sub_region?: string | undefined;
+    appellation?: string | undefined;
+    producer?: string | undefined;
+    type?: string | undefined;
+    varietal?: string | undefined;
+    in_drinking_window?: boolean | undefined;
 }
 
-export async function getBottlesByLocation(db: D1Database, location: string) {
-    return db.prepare(`
-        SELECT * FROM bottles
-        WHERE Location LIKE ?
-        ORDER BY Location, Bin, Producer, Vintage
+export async function searchBottles(db: D1Database, filters: BottleSearchFilters) {
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (filters.location) {
+        conditions.push('Location LIKE ?');
+        params.push(`%${filters.location}%`);
+    }
+    if (filters.country) {
+        conditions.push('Country LIKE ?');
+        params.push(`%${filters.country}%`);
+    }
+    if (filters.region) {
+        conditions.push('Region LIKE ?');
+        params.push(`%${filters.region}%`);
+    }
+    if (filters.sub_region) {
+        conditions.push('SubRegion LIKE ?');
+        params.push(`%${filters.sub_region}%`);
+    }
+    if (filters.appellation) {
+        conditions.push('Appellation LIKE ?');
+        params.push(`%${filters.appellation}%`);
+    }
+    if (filters.producer) {
+        conditions.push('Producer LIKE ?');
+        params.push(`%${filters.producer}%`);
+    }
+    if (filters.type) {
+        conditions.push('Type LIKE ?');
+        params.push(`%${filters.type}%`);
+    }
+    if (filters.varietal) {
+        conditions.push('Varietal LIKE ?');
+        params.push(`%${filters.varietal}%`);
+    }
+    if (filters.in_drinking_window === true) {
+        conditions.push('BeginConsume IS NOT NULL AND EndConsume IS NOT NULL AND BeginConsume <= CAST(strftime(\'%Y\', \'now\') AS INTEGER) AND EndConsume >= CAST(strftime(\'%Y\', \'now\') AS INTEGER)');
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const sql = `
+        SELECT Location AS location, Bin AS bin, Size AS size, Vintage AS vintage, Wine AS wine,
+            Country AS country, Region AS region, SubRegion AS sub_region, Appellation AS appellation,
+            Producer AS producer, Type AS type, Varietal AS varietal, Designation AS designation, Vineyard AS vineyard,
+            WA AS score_wa, VM AS score_vm, JD AS score_jd, CT AS score_ct, MY AS score_my,
+            BeginConsume AS begin_consume_year, EndConsume AS end_consume_year
+        FROM bottles
+        ${where}
+        ORDER BY Producer, Vintage, Location, Bin
         LIMIT 200
-    `).bind(`%${location}%`).all();
+    `;
+
+    return db.prepare(sql).bind(...params).all();
 }

@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
 import { z } from 'zod';
-import { initSchema, truncateAndInsertBottles, truncateAndInsertWines, searchWines, getCellarStats, getDrinkingWindows, getBottlesByLocation } from './db.js';
+import { initSchema, truncateAndInsertBottles, truncateAndInsertWines, searchWines, searchBottles, getCellarStats } from './db.js';
 import { fetchBottles, fetchWines } from './fetcher.js';
 
 function formatResults(results: unknown[], label: string): { content: { type: 'text'; text: string }[] } {
@@ -60,29 +60,24 @@ export class CellarTrackerMCP extends McpAgent {
             };
         });
 
-        this.server.registerTool('get_drinking_windows', {
-            title: 'Drinking Windows',
-            description: 'Find wines that are currently in or approaching their drinking window. Returns up to 100 wines ordered by end of drinking window (most urgent first).',
+        this.server.registerTool('search_bottles', {
+            title: 'Search Bottles',
+            description: 'Search individual bottles in your cellar with optional filters. Returns up to 200 bottles with location/bin details.',
             inputSchema: {
-                within_years: z.number().optional().describe('Number of years from now to look ahead (default: 3)')
+                location: z.string().optional().describe('Filter by storage location (partial match)'),
+                country: z.string().optional().describe('Filter by country (partial match)'),
+                region: z.string().optional().describe('Filter by region (partial match)'),
+                sub_region: z.string().optional().describe('Filter by sub-region (partial match)'),
+                appellation: z.string().optional().describe('Filter by appellation (partial match)'),
+                producer: z.string().optional().describe('Filter by producer name (partial match)'),
+                type: z.string().optional().describe('Filter by wine type, e.g. Red, White, Sparkling (partial match)'),
+                varietal: z.string().optional().describe('Filter by varietal/grape (partial match)'),
+                in_drinking_window: z.boolean().optional().describe('Filter by whether the bottle is currently in its drinking window')
             }
         }, async (params) => {
             const db = this.env.CELLARTRACKER_DB;
-            const withinYears = params.within_years ?? 3;
-            const result = await getDrinkingWindows(db, withinYears);
-            return formatResults(result.results, 'wines in drinking window');
-        });
-
-        this.server.registerTool('get_bottles_by_location', {
-            title: 'Bottles by Location',
-            description: 'Find individual bottles stored in a specific location, including bin placement. Returns up to 200 bottles.',
-            inputSchema: {
-                location: z.string().describe('Storage location to search for (partial match)')
-            }
-        }, async (params) => {
-            const db = this.env.CELLARTRACKER_DB;
-            const result = await getBottlesByLocation(db, params.location);
-            return formatResults(result.results, 'bottles at that location');
+            const result = await searchBottles(db, params);
+            return formatResults(result.results, 'bottles');
         });
 
         this.server.registerTool('refresh_data', {

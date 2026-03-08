@@ -276,7 +276,7 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const sql = `
         SELECT b.Wine AS wine, b.Vintage AS vintage, b.Size AS size,
-            b.Location AS location, GROUP_CONCAT(DISTINCT b.Bin, '; ') AS bins,
+            b.Location AS location, REPLACE(GROUP_CONCAT(DISTINCT b.Bin), ',', '; ') AS bins,
             COUNT(*) AS bottles_at_location, COALESCE(w.Quantity, 0) AS bottles_in_cellar, COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS bottles_total,
             b.Country AS country, b.Region AS region, b.SubRegion AS sub_region, b.Appellation AS appellation,
             b.Producer AS producer, b.Type AS type, b.Varietal AS varietal, b.Designation AS designation, b.Vineyard AS vineyard,

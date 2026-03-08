@@ -41,8 +41,8 @@ const COLUMNS_WINES = new Set([
 ]);
 
 const COLUMNS_REVIEWS = new Set([
-    'iReview', 'iWine', 'Publication', 'ReviewDate',
-    'Reviewer', 'Score', 'ReviewText', 'ReviewURL', 'Begin', 'End'
+    'iReview', 'iWine', 'Publication', 'ReviewDate', 'Reviewer',
+    'Score', 'ReviewText', 'ReviewURL', 'BeginConsume', 'EndConsume'
 ]);
 
 async function fetchCellarTrackerTable(username: string, password: string, table: string): Promise<string> {

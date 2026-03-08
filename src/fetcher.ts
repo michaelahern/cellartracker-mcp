@@ -4,7 +4,7 @@ const COLUMN_RENAMES: Record<string, string> = { RR: 'JD', AG: 'VM' };
 const SCORE_COLUMNS = new Set(['WA', 'AG', 'RR', 'CT', 'MY']);
 
 function normalizeScore(val: unknown): number | null {
-    if (typeof val === 'number') return Number.isFinite(val) ? val : null;
+    if (typeof val === 'number') return Number.isFinite(val) ? Math.round(val) : null;
     if (typeof val !== 'string') return null;
     // Strip parentheses, e.g. "(97-99)" -> "97-99"
     const cleaned = val.replace(/[()]/g, '').trim();

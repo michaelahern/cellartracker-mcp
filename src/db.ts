@@ -135,59 +135,59 @@ export async function getCellarStats(db: D1Database) {
             ORDER BY window ASC
         `).bind(new Date().getFullYear(), new Date().getFullYear(), new Date().getFullYear(), new Date().getFullYear()),
         db.prepare(`
-            SELECT Type AS type, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottle_count
+            SELECT Type AS type, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
             FROM wines
             WHERE Type IS NOT NULL AND Type != '' AND Type != 'Unknown'
             GROUP BY Type
-            ORDER BY bottle_count DESC
+            ORDER BY bottles_total DESC
             LIMIT 20
         `),
         db.prepare(`
-            SELECT Varietal AS varietal, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottle_count
+            SELECT Varietal AS varietal, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
             FROM wines
             WHERE Varietal IS NOT NULL AND Varietal != '' AND Varietal != 'Unknown'
             GROUP BY Varietal
-            ORDER BY bottle_count DESC
+            ORDER BY bottles_total DESC
             LIMIT 20
         `),
         db.prepare(`
-            SELECT Producer AS producer, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottle_count
+            SELECT Producer AS producer, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
             FROM wines
             WHERE Producer IS NOT NULL AND Producer != '' AND Producer != 'Unknown'
             GROUP BY Producer
-            ORDER BY bottle_count DESC
+            ORDER BY bottles_total DESC
             LIMIT 20
         `),
         db.prepare(`
-            SELECT Country AS country, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottle_count
+            SELECT Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
             FROM wines
             WHERE Country IS NOT NULL AND Country != '' AND Country != 'Unknown'
             GROUP BY Country
-            ORDER BY bottle_count DESC
+            ORDER BY bottles_total DESC
             LIMIT 10
         `),
         db.prepare(`
-            SELECT Region AS region, Country AS country, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottle_count
+            SELECT Region AS region, Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
             FROM wines
             WHERE Region IS NOT NULL AND Region != '' AND Region != 'Unknown'
             GROUP BY Region
-            ORDER BY bottle_count DESC
+            ORDER BY bottles_total DESC
             LIMIT 10
         `),
         db.prepare(`
-            SELECT SubRegion AS sub_region, Region AS region, Country AS country, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottle_count
+            SELECT SubRegion AS sub_region, Region AS region, Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
             FROM wines
             WHERE SubRegion IS NOT NULL AND SubRegion != '' AND SubRegion != 'Unknown'
             GROUP BY SubRegion
-            ORDER BY bottle_count DESC
+            ORDER BY bottles_total DESC
             LIMIT 10
         `),
         db.prepare(`
-            SELECT Appellation AS appellation, SubRegion AS sub_region, Region AS region, Country AS country, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottle_count
+            SELECT Appellation AS appellation, SubRegion AS sub_region, Region AS region, Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
             FROM wines
             WHERE Appellation IS NOT NULL AND Appellation != '' AND Appellation != 'Unknown'
             GROUP BY Appellation
-            ORDER BY bottle_count DESC
+            ORDER BY bottles_total DESC
             LIMIT 10
         `)
     ]);

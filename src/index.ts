@@ -31,23 +31,6 @@ export class CellarTrackerMCP extends McpAgent {
     });
 
     async init() {
-        this.server.registerTool('search_wines', {
-            title: 'Search Wines',
-            description: 'Search your wine inventory with optional filters. Returns up to 50 matching wines.',
-            inputSchema: {
-                producer: z.string().optional().describe('Filter by producer name (partial match)'),
-                varietal: z.string().optional().describe('Filter by varietal/grape (partial match)'),
-                vintage_min: z.number().optional().describe('Minimum vintage year'),
-                vintage_max: z.number().optional().describe('Maximum vintage year'),
-                min_score: z.number().optional().describe('Minimum score from any critic (CT, WA, WS, VM, JD, MY)'),
-                in_stock_only: z.boolean().optional().describe('Only show wines in stock (default: true)')
-            }
-        }, async (params) => {
-            const db = this.env.CELLARTRACKER_DB;
-            const result = await searchWines(db, params);
-            return formatResults(result.results, 'wines');
-        });
-
         this.server.registerTool('get_cellar_stats', {
             title: 'Cellar Statistics',
             description: 'Get aggregate statistics about your cellar: total bottles, total value, top varietals, top producers, and wines in drinking window.'
@@ -63,6 +46,8 @@ export class CellarTrackerMCP extends McpAgent {
             title: 'Search Bottles',
             description: 'Search individual bottles in your cellar with optional filters. Returns up to 200 bottles with location/bin details.',
             inputSchema: {
+                vintage_min: z.number().optional().describe('Minimum vintage year'),
+                vintage_max: z.number().optional().describe('Maximum vintage year'),
                 location: z.string().optional().describe('Filter by storage location (partial match)'),
                 country: z.string().optional().describe('Filter by country (partial match)'),
                 region: z.string().optional().describe('Filter by region (partial match)'),
@@ -71,12 +56,36 @@ export class CellarTrackerMCP extends McpAgent {
                 producer: z.string().optional().describe('Filter by producer name (partial match)'),
                 type: z.string().optional().describe('Filter by wine type, e.g. Red, White, Sparkling (partial match)'),
                 varietal: z.string().optional().describe('Filter by varietal/grape (partial match)'),
+                min_score: z.number().optional().describe('Minimum score from any critic (VM, JD, WA, CT, MY)'),
                 in_drinking_window: z.boolean().optional().describe('Filter by whether the bottle is currently in its drinking window')
             }
         }, async (params) => {
             const db = this.env.CELLARTRACKER_DB;
             const result = await searchBottles(db, params);
             return formatResults(result.results, 'bottles');
+        });
+
+        this.server.registerTool('search_wines', {
+            title: 'Search Wines',
+            description: 'Search your wine inventory with optional filters. Returns up to 100 matching wines.',
+            inputSchema: {
+                vintage_min: z.number().optional().describe('Minimum vintage year'),
+                vintage_max: z.number().optional().describe('Maximum vintage year'),
+                country: z.string().optional().describe('Filter by country (partial match)'),
+                region: z.string().optional().describe('Filter by region (partial match)'),
+                sub_region: z.string().optional().describe('Filter by sub-region (partial match)'),
+                appellation: z.string().optional().describe('Filter by appellation (partial match)'),
+                producer: z.string().optional().describe('Filter by producer name (partial match)'),
+                type: z.string().optional().describe('Filter by wine type, e.g. Red, White, Sparkling (partial match)'),
+                varietal: z.string().optional().describe('Filter by varietal/grape (partial match)'),
+                min_score: z.number().optional().describe('Minimum score from any critic (VM, JD, WA, CT, MY)'),
+                in_drinking_window: z.boolean().optional().describe('Filter by whether the wine is currently in its drinking window'),
+                in_stock_only: z.boolean().optional().describe('Only show wines in stock')
+            }
+        }, async (params) => {
+            const db = this.env.CELLARTRACKER_DB;
+            const result = await searchWines(db, params);
+            return formatResults(result.results, 'wines');
         });
 
         this.server.registerTool('refresh_data', {

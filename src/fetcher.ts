@@ -67,7 +67,7 @@ function parseCellarTrackerTable(responseText: string, columns: Set<string>): Fe
         for (const [key, val] of Object.entries(row as Record<string, unknown>)) {
             if (!columns.has(key)) continue;
             const newKey = COLUMN_RENAMES[key] ?? key;
-            out[newKey] = SCORE_COLUMNS.has(key) ? normalizeScore(val) : val;
+            out[newKey] = SCORE_COLUMNS.has(key) ? normalizeScore(val) : val === 'Unknown' ? null : val;
         }
         return out;
     });

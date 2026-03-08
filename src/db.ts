@@ -52,55 +52,6 @@ export async function truncateAndInsertWines(db: D1Database, rows: Record<string
     await truncateAndInsert(db, 'wines', WINE_COLUMNS, rows);
 }
 
-export interface SearchFilters {
-    producer?: string | undefined;
-    varietal?: string | undefined;
-    vintage_min?: number | undefined;
-    vintage_max?: number | undefined;
-    location?: string | undefined;
-    min_score?: number | undefined;
-    in_stock_only?: boolean | undefined;
-}
-
-export async function searchWines(db: D1Database, filters: SearchFilters) {
-    const conditions: string[] = [];
-    const params: unknown[] = [];
-
-    if (filters.in_stock_only !== false) {
-        conditions.push('Quantity > 0');
-    }
-    if (filters.producer) {
-        conditions.push('Producer LIKE ?');
-        params.push(`%${filters.producer}%`);
-    }
-    if (filters.varietal) {
-        conditions.push('Varietal LIKE ?');
-        params.push(`%${filters.varietal}%`);
-    }
-    if (filters.vintage_min !== undefined) {
-        conditions.push('Vintage >= ?');
-        params.push(filters.vintage_min);
-    }
-    if (filters.vintage_max !== undefined) {
-        conditions.push('Vintage <= ?');
-        params.push(filters.vintage_max);
-    }
-    if (filters.location) {
-        // Location lives on bottles; join to filter wines by bottle location
-        conditions.push('iWine IN (SELECT DISTINCT iWine FROM bottles WHERE Location LIKE ?)');
-        params.push(`%${filters.location}%`);
-    }
-    if (filters.min_score !== undefined) {
-        conditions.push('(CT >= ? OR WA >= ? OR VM >= ? OR JD >= ? OR MY >= ?)');
-        params.push(filters.min_score, filters.min_score, filters.min_score, filters.min_score, filters.min_score);
-    }
-
-    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const sql = `SELECT * FROM wines ${where} ORDER BY Producer, Vintage LIMIT 50`;
-
-    return db.prepare(sql).bind(...params).all();
-}
-
 export async function getCellarStats(db: D1Database) {
     const results = await db.batch<Record<string, unknown>>([
         db.prepare(`
@@ -122,7 +73,7 @@ export async function getCellarStats(db: D1Database) {
         db.prepare(`
             SELECT
                 CASE
-                    WHEN EndConsume < CAST(strftime('%Y', 'now') AS INTEGER) THEN 'matured'
+                    WHEN EndConsume < CAST(strftime('%Y', 'now') AS INTEGER) THEN 'past'
                     WHEN BeginConsume <= CAST(strftime('%Y', 'now') AS INTEGER) AND EndConsume >= CAST(strftime('%Y', 'now') AS INTEGER) THEN 'now'
                     WHEN BeginConsume > CAST(strftime('%Y', 'now') AS INTEGER) THEN 'starting ' || CAST(BeginConsume AS TEXT)
                     ELSE 'unknown'
@@ -222,6 +173,8 @@ export async function getCellarStats(db: D1Database) {
 }
 
 export interface BottleSearchFilters {
+    vintage_min?: number | undefined;
+    vintage_max?: number | undefined;
     location?: string | undefined;
     country?: string | undefined;
     region?: string | undefined;
@@ -230,6 +183,7 @@ export interface BottleSearchFilters {
     producer?: string | undefined;
     type?: string | undefined;
     varietal?: string | undefined;
+    min_score?: number | undefined;
     in_drinking_window?: boolean | undefined;
 }
 
@@ -237,6 +191,14 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
     const conditions: string[] = [];
     const params: unknown[] = [];
 
+    if (filters.vintage_min !== undefined) {
+        conditions.push('b.Vintage >= ?');
+        params.push(filters.vintage_min);
+    }
+    if (filters.vintage_max !== undefined) {
+        conditions.push('b.Vintage <= ?');
+        params.push(filters.vintage_max);
+    }
     if (filters.location) {
         conditions.push('b.Location LIKE ?');
         params.push(`%${filters.location}%`);
@@ -269,6 +231,10 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
         conditions.push('b.Varietal LIKE ?');
         params.push(`%${filters.varietal}%`);
     }
+    if (filters.min_score !== undefined) {
+        conditions.push('(b.CT >= ? OR b.WA >= ? OR b.VM >= ? OR b.JD >= ? OR b.MY >= ?)');
+        params.push(filters.min_score, filters.min_score, filters.min_score, filters.min_score, filters.min_score);
+    }
     if (filters.in_drinking_window === true) {
         conditions.push('b.BeginConsume IS NOT NULL AND b.EndConsume IS NOT NULL AND b.BeginConsume <= CAST(strftime(\'%Y\', \'now\') AS INTEGER) AND b.EndConsume >= CAST(strftime(\'%Y\', \'now\') AS INTEGER)');
     }
@@ -281,7 +247,13 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
             b.Country AS country, b.Region AS region, b.SubRegion AS sub_region, b.Appellation AS appellation,
             b.Producer AS producer, b.Type AS type, b.Varietal AS varietal, b.Designation AS designation, b.Vineyard AS vineyard,
             b.VM AS score_vm, b.JD AS score_jd, b.WA AS score_wa, b.CT AS score_ct, b.MY AS score_my,
-            b.BeginConsume AS begin_consume_year, b.EndConsume AS end_consume_year
+            b.BeginConsume AS begin_consume_year, b.EndConsume AS end_consume_year,
+            CASE
+                WHEN b.BeginConsume IS NULL OR b.EndConsume IS NULL THEN NULL
+                WHEN b.EndConsume < CAST(strftime('%Y', 'now') AS INTEGER) THEN 'past'
+                WHEN b.BeginConsume <= CAST(strftime('%Y', 'now') AS INTEGER) AND b.EndConsume >= CAST(strftime('%Y', 'now') AS INTEGER) THEN 'now'
+                WHEN b.BeginConsume > CAST(strftime('%Y', 'now') AS INTEGER) THEN 'future'
+            END AS drinking_window_status
         FROM bottles b
         LEFT JOIN wines w ON b.iWine = w.iWine
         ${where}
@@ -289,6 +261,93 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
         ORDER BY b.Wine, b.Vintage, b.Location
         LIMIT 200
         `;
+
+    return db.prepare(sql).bind(...params).all();
+}
+
+export interface WineSearchFilters {
+    vintage_min?: number | undefined;
+    vintage_max?: number | undefined;
+    country?: string | undefined;
+    region?: string | undefined;
+    sub_region?: string | undefined;
+    appellation?: string | undefined;
+    producer?: string | undefined;
+    type?: string | undefined;
+    varietal?: string | undefined;
+    min_score?: number | undefined;
+    in_drinking_window?: boolean | undefined;
+    in_stock_only?: boolean | undefined;
+}
+
+export async function searchWines(db: D1Database, filters: WineSearchFilters) {
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (filters.vintage_min !== undefined) {
+        conditions.push('Vintage >= ?');
+        params.push(filters.vintage_min);
+    }
+    if (filters.vintage_max !== undefined) {
+        conditions.push('Vintage <= ?');
+        params.push(filters.vintage_max);
+    }
+    if (filters.country) {
+        conditions.push('Country LIKE ?');
+        params.push(`%${filters.country}%`);
+    }
+    if (filters.region) {
+        conditions.push('Region LIKE ?');
+        params.push(`%${filters.region}%`);
+    }
+    if (filters.sub_region) {
+        conditions.push('SubRegion LIKE ?');
+        params.push(`%${filters.sub_region}%`);
+    }
+    if (filters.appellation) {
+        conditions.push('Appellation LIKE ?');
+        params.push(`%${filters.appellation}%`);
+    }
+    if (filters.producer) {
+        conditions.push('Producer LIKE ?');
+        params.push(`%${filters.producer}%`);
+    }
+    if (filters.type) {
+        conditions.push('Type LIKE ?');
+        params.push(`%${filters.type}%`);
+    }
+    if (filters.varietal) {
+        conditions.push('Varietal LIKE ?');
+        params.push(`%${filters.varietal}%`);
+    }
+    if (filters.min_score !== undefined) {
+        conditions.push('(CT >= ? OR WA >= ? OR VM >= ? OR JD >= ? OR MY >= ?)');
+        params.push(filters.min_score, filters.min_score, filters.min_score, filters.min_score, filters.min_score);
+    }
+    if (filters.in_drinking_window === true) {
+        conditions.push('BeginConsume IS NOT NULL AND EndConsume IS NOT NULL AND BeginConsume <= CAST(strftime(\'%Y\', \'now\') AS INTEGER) AND EndConsume >= CAST(strftime(\'%Y\', \'now\') AS INTEGER)');
+    }
+    if (filters.in_stock_only === true) {
+        conditions.push('Quantity > 0');
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const sql = `
+        SELECT Wine AS wine, Vintage AS vintage, Size AS size,
+            COALESCE(Quantity, 0) AS bottles_in_cellar, COALESCE(Pending, 0) AS bottles_pending_delivery, COALESCE(Quantity, 0) + COALESCE(Pending, 0) AS bottles_total,
+            Country AS country, Region AS region, SubRegion AS sub_region, Appellation AS appellation,
+            Producer AS producer, Type AS type, Varietal AS varietal, Designation AS designation, Vineyard AS vineyard,
+            VM AS score_vm, JD AS score_jd, WA AS score_wa, CT AS score_ct, MY AS score_my,
+            BeginConsume AS begin_consume_year, EndConsume AS end_consume_year,
+            CASE
+                WHEN BeginConsume IS NULL OR EndConsume IS NULL THEN NULL
+                WHEN EndConsume < CAST(strftime('%Y', 'now') AS INTEGER) THEN 'past'
+                WHEN BeginConsume <= CAST(strftime('%Y', 'now') AS INTEGER) AND EndConsume >= CAST(strftime('%Y', 'now') AS INTEGER) THEN 'now'
+                WHEN BeginConsume > CAST(strftime('%Y', 'now') AS INTEGER) THEN 'future'
+            END AS drinking_window_status
+        FROM wines ${where}
+        ORDER BY Wine, Vintage
+        LIMIT 100`;
 
     return db.prepare(sql).bind(...params).all();
 }

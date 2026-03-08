@@ -1,8 +1,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
 import { z } from 'zod';
-import { initSchema, truncateAndInsert, searchWines, getCellarStats, getDrinkingWindows, getWinesByLocation } from './db.js';
-import { fetchInventory } from './fetcher.js';
+import { initSchema, truncateAndInsertBottles, truncateAndInsertWines, searchWines, getCellarStats, getDrinkingWindows, getBottlesByLocation } from './db.js';
+import { fetchBottles, fetchWines } from './fetcher.js';
 
 function formatResults(results: unknown[], label: string): { content: { type: 'text'; text: string }[] } {
     if (results.length === 0) {
@@ -73,16 +73,16 @@ export class CellarTrackerMCP extends McpAgent {
             return formatResults(result.results, 'wines in drinking window');
         });
 
-        this.server.registerTool('get_wines_by_location', {
-            title: 'Wines by Location',
-            description: 'Find wines stored in a specific location. Returns up to 200 wines.',
+        this.server.registerTool('get_bottles_by_location', {
+            title: 'Bottles by Location',
+            description: 'Find individual bottles stored in a specific location, including bin placement. Returns up to 200 bottles.',
             inputSchema: {
                 location: z.string().describe('Storage location to search for (partial match)')
             }
         }, async (params) => {
             const db = this.env.CELLARTRACKER_DB;
-            const result = await getWinesByLocation(db, params.location);
-            return formatResults(result.results, 'wines at that location');
+            const result = await getBottlesByLocation(db, params.location);
+            return formatResults(result.results, 'bottles at that location');
         });
 
         this.server.registerTool('refresh_data', {
@@ -94,13 +94,17 @@ export class CellarTrackerMCP extends McpAgent {
             const password = await this.env.CELLARTRACKER_PASSWORD.get();
 
             await initSchema(db);
-            const rows = await fetchInventory(username, password);
-            await truncateAndInsert(db, rows);
+            const [bottles, wines] = await Promise.all([
+                fetchBottles(username, password),
+                fetchWines(username, password)
+            ]);
+            await truncateAndInsertBottles(db, bottles);
+            await truncateAndInsertWines(db, wines);
 
             return {
                 content: [{
                     type: 'text' as const,
-                    text: `Successfully refreshed inventory data. Imported ${rows.length} wine records at ${new Date().toISOString()}.`
+                    text: `Successfully refreshed inventory data. Imported ${wines.length} wines and ${bottles.length} bottles at ${new Date().toISOString()}.`
                 }]
             };
         });

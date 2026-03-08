@@ -1,22 +1,34 @@
 export async function initSchema(db: D1Database) {
-    await db.prepare(
-        'CREATE TABLE IF NOT EXISTS wines (iWine TEXT PRIMARY KEY, Producer TEXT, Wine TEXT, Vintage REAL, Varietal TEXT, Location TEXT, Bin TEXT, Quantity REAL, Size TEXT, Price REAL, Valuation REAL, Currency TEXT, Country TEXT, Region TEXT, SubRegion TEXT, Appellation TEXT, Type TEXT, Color TEXT, Category TEXT, Designation TEXT, Vineyard TEXT, StoreName TEXT, PurchaseDate TEXT, WA REAL, WS REAL, VM REAL, JR TEXT, JD REAL, CT REAL, MY REAL, BeginConsume REAL, EndConsume REAL)'
-    ).run();
+    await db.batch([
+        db.prepare(
+            'CREATE TABLE IF NOT EXISTS bottles (Barcode TEXT PRIMARY KEY, iWine TEXT, Location TEXT, Bin TEXT, StoreName TEXT, PurchaseDate TEXT, Size TEXT, Vintage REAL, Wine TEXT, Country TEXT, Region TEXT, SubRegion TEXT, Appellation TEXT, Producer TEXT, Type TEXT, Color TEXT, Category TEXT, Varietal TEXT, Designation TEXT, Vineyard TEXT, WA REAL, VM REAL, JD REAL, CT REAL, MY REAL, BeginConsume REAL, EndConsume REAL)'
+        ),
+        db.prepare(
+            'CREATE TABLE IF NOT EXISTS wines (iWine TEXT PRIMARY KEY, Quantity REAL, Pending REAL, Size TEXT, Vintage REAL, Wine TEXT, Country TEXT, Region TEXT, SubRegion TEXT, Appellation TEXT, Producer TEXT, Type TEXT, Color TEXT, Category TEXT, Varietal TEXT, Designation TEXT, Vineyard TEXT, WA REAL, VM REAL, JD REAL, CT REAL, MY REAL, BeginConsume REAL, EndConsume REAL)'
+        )
+    ]);
 }
 
-export async function truncateAndInsert(db: D1Database, rows: Record<string, unknown>[]) {
-    const columns = [
-        'iWine', 'Producer', 'Wine', 'Vintage', 'Varietal', 'Location', 'Bin',
-        'Quantity', 'Size', 'Price', 'Valuation', 'Currency', 'Country', 'Region',
-        'SubRegion', 'Appellation', 'Type', 'Color', 'Category', 'Designation',
-        'Vineyard', 'StoreName', 'PurchaseDate', 'WA', 'WS', 'VM', 'JR', 'JD',
-        'CT', 'MY', 'BeginConsume', 'EndConsume'
-    ];
+const BOTTLE_COLUMNS = [
+    'Barcode', 'iWine', 'Location', 'Bin', 'StoreName', 'PurchaseDate',
+    'Size', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation',
+    'Producer', 'Type', 'Color', 'Category', 'Varietal', 'Designation', 'Vineyard',
+    'WA', 'VM', 'JD', 'CT', 'MY', 'BeginConsume', 'EndConsume'
+];
+
+const WINE_COLUMNS = [
+    'iWine', 'Quantity', 'Pending',
+    'Size', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation',
+    'Producer', 'Type', 'Color', 'Category', 'Varietal', 'Designation', 'Vineyard',
+    'WA', 'VM', 'JD', 'CT', 'MY', 'BeginConsume', 'EndConsume'
+];
+
+function buildBatchInsert(db: D1Database, table: string, columns: string[], rows: Record<string, unknown>[]) {
     const placeholders = columns.map(() => '?').join(', ');
-    const insertSQL = `INSERT OR REPLACE INTO wines (${columns.join(', ')}) VALUES (${placeholders})`;
+    const insertSQL = `INSERT OR REPLACE INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
 
     const statements: D1PreparedStatement[] = [
-        db.prepare('DELETE FROM wines')
+        db.prepare(`DELETE FROM ${table}`)
     ];
 
     for (const row of rows) {
@@ -27,7 +39,19 @@ export async function truncateAndInsert(db: D1Database, rows: Record<string, unk
         statements.push(db.prepare(insertSQL).bind(...values));
     }
 
-    // D1 batch() supports up to 100 statements per call
+    return statements;
+}
+
+export async function truncateAndInsertBottles(db: D1Database, rows: Record<string, unknown>[]) {
+    const statements = buildBatchInsert(db, 'bottles', BOTTLE_COLUMNS, rows);
+    const BATCH_SIZE = 100;
+    for (let i = 0; i < statements.length; i += BATCH_SIZE) {
+        await db.batch(statements.slice(i, i + BATCH_SIZE));
+    }
+}
+
+export async function truncateAndInsertWines(db: D1Database, rows: Record<string, unknown>[]) {
+    const statements = buildBatchInsert(db, 'wines', WINE_COLUMNS, rows);
     const BATCH_SIZE = 100;
     for (let i = 0; i < statements.length; i += BATCH_SIZE) {
         await db.batch(statements.slice(i, i + BATCH_SIZE));
@@ -68,12 +92,13 @@ export async function searchWines(db: D1Database, filters: SearchFilters) {
         params.push(filters.vintage_max);
     }
     if (filters.location) {
-        conditions.push('Location LIKE ?');
+        // Location lives on bottles; join to filter wines by bottle location
+        conditions.push('iWine IN (SELECT DISTINCT iWine FROM bottles WHERE Location LIKE ?)');
         params.push(`%${filters.location}%`);
     }
     if (filters.min_score !== undefined) {
-        conditions.push('(CT >= ? OR WA >= ? OR WS >= ? OR VM >= ? OR JD >= ? OR MY >= ?)');
-        params.push(filters.min_score, filters.min_score, filters.min_score, filters.min_score, filters.min_score, filters.min_score);
+        conditions.push('(CT >= ? OR WA >= ? OR VM >= ? OR JD >= ? OR MY >= ?)');
+        params.push(filters.min_score, filters.min_score, filters.min_score, filters.min_score, filters.min_score);
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -87,8 +112,7 @@ export async function getCellarStats(db: D1Database) {
         db.prepare(`
             SELECT
                 COALESCE(SUM(Quantity), 0) AS total_bottles,
-                COALESCE(SUM(Valuation), 0) AS total_value,
-                COUNT(DISTINCT iWine) AS unique_wines
+                COUNT(*) AS unique_wines
             FROM wines
             WHERE Quantity > 0
         `),
@@ -116,16 +140,23 @@ export async function getCellarStats(db: D1Database) {
                 AND EndConsume IS NOT NULL
                 AND BeginConsume <= ?
                 AND EndConsume >= ?
-        `).bind(new Date().getFullYear(), new Date().getFullYear())
+        `).bind(new Date().getFullYear(), new Date().getFullYear()),
+        db.prepare(`
+            SELECT COALESCE(SUM(Pending), 0) AS total_pending
+            FROM wines
+            WHERE Pending > 0
+        `)
     ]);
 
     const totals = results[0] ?? { results: [] };
     const varietals = results[1] ?? { results: [] };
     const producers = results[2] ?? { results: [] };
     const drinkingWindow = results[3] ?? { results: [] };
+    const pending = results[4] ?? { results: [] };
 
     return {
         totals: totals.results[0],
+        total_pending: (pending.results[0] as Record<string, unknown> | undefined)?.['total_pending'] ?? 0,
         top_varietals: varietals.results,
         top_producers: producers.results,
         in_drinking_window: (drinkingWindow.results[0] as Record<string, unknown> | undefined)?.['count'] ?? 0
@@ -148,10 +179,10 @@ export async function getDrinkingWindows(db: D1Database, withinYears: number) {
     `).bind(targetYear, currentYear).all();
 }
 
-export async function getWinesByLocation(db: D1Database, location: string) {
+export async function getBottlesByLocation(db: D1Database, location: string) {
     return db.prepare(`
-        SELECT * FROM wines
-        WHERE Quantity > 0 AND Location LIKE ?
+        SELECT * FROM bottles
+        WHERE Location LIKE ?
         ORDER BY Location, Bin, Producer, Vintage
         LIMIT 200
     `).bind(`%${location}%`).all();

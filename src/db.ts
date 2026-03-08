@@ -203,14 +203,14 @@ export async function getCellarStats(db: D1Database) {
     const subRegions = results[8] ?? { results: [] };
     const appellations = results[9] ?? { results: [] };
 
-    const windowRows = drinkingWindows.results as { window: string; bottle_count: number }[];
+    const windowRows = drinkingWindows.results as { window: string; bottles_total: number }[];
     const drinkingWindowMap: Record<string, number> = {};
     for (const row of windowRows) {
         if (row.window === 'past' || row.window === 'current') {
-            drinkingWindowMap[row.window] = row.bottle_count;
+            drinkingWindowMap[row.window] = row.bottles_total;
         }
         else if (row.window !== 'unknown') {
-            drinkingWindowMap[`${row.window}+`] = row.bottle_count;
+            drinkingWindowMap[`${row.window}+`] = row.bottles_total;
         }
     }
 

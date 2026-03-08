@@ -31,7 +31,8 @@ function parseTSV(responseText: string, columns: Set<string>): FetchResult {
         delimiter: '\t',
         header: true,
         skipEmptyLines: true,
-        dynamicTyping: true
+        dynamicTyping: true,
+        quoteChar: '\0'
     });
 
     const rows = data.map((row) => {

@@ -3,6 +3,18 @@ import Papa from 'papaparse';
 const COLUMN_RENAMES: Record<string, string> = { RR: 'JD', AG: 'VM' };
 const SCORE_COLUMNS = new Set(['WA', 'AG', 'RR', 'CT', 'MY']);
 
+const NAMED_ENTITIES: Record<string, string> = {
+    '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': '\''
+};
+
+function decodeHtmlEntities(text: string): string {
+    if (!text.includes('&')) return text;
+    return text
+        .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+        .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex as string, 16)))
+        .replace(/&(?:amp|lt|gt|quot|apos);/g, m => NAMED_ENTITIES[m] ?? m);
+}
+
 function normalizeScore(val: unknown): number | null {
     if (typeof val === 'number') return Number.isFinite(val) ? Math.round(val) : null;
     if (typeof val !== 'string') return null;
@@ -36,7 +48,8 @@ async function fetchCellarTrackerTable(username: string, password: string, table
         throw new Error(`Failed to fetch data from CellarTracker: ${response.status} ${response.statusText}`);
     }
 
-    return response.text();
+    const text = await response.text();
+    return decodeHtmlEntities(text);
 }
 
 function parseCellarTrackerTable(responseText: string, columns: Set<string>): FetchResult {

@@ -113,7 +113,7 @@ export async function getCellarStats(db: D1Database) {
         db.prepare(`
             SELECT Varietal AS varietal, SUM(Quantity) AS bottle_count
             FROM wines
-            WHERE Quantity > 0 AND Varietal IS NOT NULL AND Varietal != ''
+            WHERE Quantity > 0 AND Varietal IS NOT NULL AND Varietal != '' AND Varietal != 'Unknown'
             GROUP BY Varietal
             ORDER BY bottle_count DESC
             LIMIT 20
@@ -121,7 +121,7 @@ export async function getCellarStats(db: D1Database) {
         db.prepare(`
             SELECT Producer AS producer, SUM(Quantity) AS bottle_count
             FROM wines
-            WHERE Quantity > 0 AND Producer IS NOT NULL AND Producer != ''
+            WHERE Quantity > 0 AND Producer IS NOT NULL AND Producer != '' AND Producer != 'Unknown'
             GROUP BY Producer
             ORDER BY bottle_count DESC
             LIMIT 20
@@ -138,7 +138,7 @@ export async function getCellarStats(db: D1Database) {
         db.prepare(`
             SELECT Type AS type, SUM(Quantity) AS bottle_count
             FROM wines
-            WHERE Quantity > 0 AND Type IS NOT NULL AND Type != ''
+            WHERE Quantity > 0 AND Type IS NOT NULL AND Type != '' AND Type != 'Unknown'
             GROUP BY Type
             ORDER BY bottle_count DESC
             LIMIT 20
@@ -146,34 +146,34 @@ export async function getCellarStats(db: D1Database) {
         db.prepare(`
             SELECT Country AS country, SUM(Quantity) AS bottle_count
             FROM wines
-            WHERE Quantity > 0 AND Country IS NOT NULL AND Country != ''
+            WHERE Quantity > 0 AND Country IS NOT NULL AND Country != '' AND Country != 'Unknown'
             GROUP BY Country
             ORDER BY bottle_count DESC
-            LIMIT 20
+            LIMIT 10
         `),
         db.prepare(`
             SELECT Region AS region, Country AS country, SUM(Quantity) AS bottle_count
             FROM wines
-            WHERE Quantity > 0 AND Region IS NOT NULL AND Region != ''
+            WHERE Quantity > 0 AND Region IS NOT NULL AND Region != '' AND Region != 'Unknown'
             GROUP BY Region
             ORDER BY bottle_count DESC
-            LIMIT 20
+            LIMIT 10
         `),
         db.prepare(`
             SELECT SubRegion AS sub_region, Region AS region, Country AS country, SUM(Quantity) AS bottle_count
             FROM wines
-            WHERE Quantity > 0 AND SubRegion IS NOT NULL AND SubRegion != ''
+            WHERE Quantity > 0 AND SubRegion IS NOT NULL AND SubRegion != '' AND SubRegion != 'Unknown'
             GROUP BY SubRegion
             ORDER BY bottle_count DESC
-            LIMIT 20
+            LIMIT 10
         `),
         db.prepare(`
             SELECT Appellation AS appellation, SubRegion AS sub_region, Region AS region, Country AS country, SUM(Quantity) AS bottle_count
             FROM wines
-            WHERE Quantity > 0 AND Appellation IS NOT NULL AND Appellation != ''
+            WHERE Quantity > 0 AND Appellation IS NOT NULL AND Appellation != '' AND Appellation != 'Unknown'
             GROUP BY Appellation
             ORDER BY bottle_count DESC
-            LIMIT 20
+            LIMIT 10
         `)
     ]);
 

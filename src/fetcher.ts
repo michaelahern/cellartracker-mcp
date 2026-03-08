@@ -48,7 +48,8 @@ async function fetchCellarTrackerTable(username: string, password: string, table
         throw new Error(`Failed to fetch data from CellarTracker: ${response.status} ${response.statusText}`);
     }
 
-    const text = await response.text();
+    const buffer = await response.arrayBuffer();
+    const text = new TextDecoder('windows-1252').decode(buffer);
     return decodeHtmlEntities(text);
 }
 

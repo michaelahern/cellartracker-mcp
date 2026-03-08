@@ -23,14 +23,13 @@ const WINE_COLUMNS = [
     'WA', 'VM', 'JD', 'CT', 'MY', 'BeginConsume', 'EndConsume'
 ];
 
-function buildBatchInsert(db: D1Database, table: string, columns: string[], rows: Record<string, unknown>[]) {
+async function truncateAndInsert(db: D1Database, table: string, columns: string[], rows: Record<string, unknown>[]) {
     const placeholders = columns.map(() => '?').join(', ');
     const insertSQL = `INSERT OR REPLACE INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
 
-    const statements: D1PreparedStatement[] = [
-        db.prepare(`DELETE FROM ${table}`)
-    ];
+    await db.prepare(`DELETE FROM ${table}`).run();
 
+    const statements: D1PreparedStatement[] = [];
     for (const row of rows) {
         const values = columns.map((col) => {
             const val = row[col];
@@ -39,23 +38,18 @@ function buildBatchInsert(db: D1Database, table: string, columns: string[], rows
         statements.push(db.prepare(insertSQL).bind(...values));
     }
 
-    return statements;
+    const BATCH_SIZE = 20;
+    for (let i = 0; i < statements.length; i += BATCH_SIZE) {
+        await db.batch(statements.slice(i, i + BATCH_SIZE));
+    }
 }
 
 export async function truncateAndInsertBottles(db: D1Database, rows: Record<string, unknown>[]) {
-    const statements = buildBatchInsert(db, 'bottles', BOTTLE_COLUMNS, rows);
-    const BATCH_SIZE = 100;
-    for (let i = 0; i < statements.length; i += BATCH_SIZE) {
-        await db.batch(statements.slice(i, i + BATCH_SIZE));
-    }
+    await truncateAndInsert(db, 'bottles', BOTTLE_COLUMNS, rows);
 }
 
 export async function truncateAndInsertWines(db: D1Database, rows: Record<string, unknown>[]) {
-    const statements = buildBatchInsert(db, 'wines', WINE_COLUMNS, rows);
-    const BATCH_SIZE = 100;
-    for (let i = 0; i < statements.length; i += BATCH_SIZE) {
-        await db.batch(statements.slice(i, i + BATCH_SIZE));
-    }
+    await truncateAndInsert(db, 'wines', WINE_COLUMNS, rows);
 }
 
 export interface SearchFilters {

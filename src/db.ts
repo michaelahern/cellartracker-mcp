@@ -275,7 +275,7 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const sql = `
-        SELECT b.Location AS location, (SELECT GROUP_CONCAT(b2.Bin || ' (x' || COUNT(*) || ')', '; ') FROM bottles b2 WHERE b2.iWine = b.iWine AND b2.Location = b.Location GROUP BY b2.Bin) AS bins,
+        SELECT b.Location AS location, (SELECT GROUP_CONCAT(bin_info, '; ') FROM (SELECT b2.Bin || ' (x' || COUNT(*) || ')' AS bin_info FROM bottles b2 WHERE b2.iWine = b.iWine AND b2.Location = b.Location GROUP BY b2.Bin)) AS bins,
             COUNT(*) AS bottles_at_location,
             COALESCE(w.Quantity, 0) AS bottles_in_cellar,
             COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS bottles_total,

@@ -127,14 +127,20 @@ export async function getCellarStats(db: D1Database) {
             LIMIT 20
         `),
         db.prepare(`
-            SELECT COUNT(*) AS count
-            FROM wines
-            WHERE Quantity > 0
-                AND BeginConsume IS NOT NULL
-                AND EndConsume IS NOT NULL
-                AND BeginConsume <= ?
-                AND EndConsume >= ?
-        `).bind(new Date().getFullYear(), new Date().getFullYear()),
+            SELECT
+                CASE
+                    WHEN EndConsume IS NOT NULL AND EndConsume < ? THEN 'past'
+                    WHEN BeginConsume IS NOT NULL AND EndConsume IS NOT NULL
+                        AND BeginConsume <= ? AND EndConsume >= ? THEN 'current'
+                    WHEN BeginConsume IS NOT NULL AND BeginConsume > ? THEN CAST(BeginConsume AS TEXT)
+                    ELSE 'unknown'
+                END AS window,
+                COUNT(*) AS bottle_count
+            FROM bottles
+            WHERE BeginConsume IS NOT NULL OR EndConsume IS NOT NULL
+            GROUP BY window
+            ORDER BY window ASC
+        `).bind(new Date().getFullYear(), new Date().getFullYear(), new Date().getFullYear(), new Date().getFullYear()),
         db.prepare(`
             SELECT Type AS type, SUM(Quantity) AS bottle_count
             FROM wines
@@ -180,23 +186,33 @@ export async function getCellarStats(db: D1Database) {
     const totals = results[0] ?? { results: [] };
     const varietals = results[1] ?? { results: [] };
     const producers = results[2] ?? { results: [] };
-    const drinkingWindow = results[3] ?? { results: [] };
+    const drinkingWindows = results[3] ?? { results: [] };
     const types = results[4] ?? { results: [] };
     const countries = results[5] ?? { results: [] };
     const regions = results[6] ?? { results: [] };
     const subRegions = results[7] ?? { results: [] };
     const appellations = results[8] ?? { results: [] };
 
+    const windowRows = drinkingWindows.results as { window: string; bottle_count: number }[];
+    let past = 0;
+    let current = 0;
+    const futureByYear: { year: number; bottle_count: number }[] = [];
+    for (const row of windowRows) {
+        if (row.window === 'past') past = row.bottle_count;
+        else if (row.window === 'current') current = row.bottle_count;
+        else if (row.window !== 'unknown') futureByYear.push({ year: Number(row.window), bottle_count: row.bottle_count });
+    }
+
     return {
         totals: totals.results[0],
+        drinking_window: { past, current, future_by_year: futureByYear },
+        top_types: types.results,
+        top_varietals: varietals.results,
+        top_producers: producers.results,
         top_countries: countries.results,
         top_regions: regions.results,
         top_sub_regions: subRegions.results,
-        top_appellations: appellations.results,
-        top_producers: producers.results,
-        top_types: types.results,
-        top_varietals: varietals.results,
-        in_drinking_window: (drinkingWindow.results[0] as Record<string, unknown> | undefined)?.['count'] ?? 0
+        top_appellations: appellations.results
     };
 }
 

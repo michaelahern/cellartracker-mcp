@@ -1,7 +1,7 @@
 import Papa from 'papaparse';
 
 const COLUMN_RENAMES: Record<string, string> = { RR: 'JD', AG: 'VM' };
-const SCORE_COLUMNS = new Set(['WA', 'AG', 'RR', 'CT', 'MY']);
+const SCORE_COLUMNS = new Set(['WA', 'AG', 'RR', 'CT', 'MY', 'Score']);
 
 const NAMED_ENTITIES: Record<string, string> = {
     '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': '\''

@@ -19,15 +19,16 @@ export async function fetchInventory(username: string, password: string): Promis
     }
 
     const responseText = await response.text();
-    const { data } = Papa.parse<Record<string, string>>(responseText, {
+    const { data } = Papa.parse<Record<string, unknown>>(responseText, {
         delimiter: '\t',
         header: true,
-        skipEmptyLines: true
+        skipEmptyLines: true,
+        dynamicTyping: true
     });
 
     return data.map((row) => {
         const out: Record<string, unknown> = {};
-        for (const [key, val] of Object.entries(row)) {
+        for (const [key, val] of Object.entries(row as Record<string, unknown>)) {
             if (!COLUMNS.has(key)) continue;
             const newKey = COLUMN_RENAMES[key] ?? key;
             out[newKey] = val;

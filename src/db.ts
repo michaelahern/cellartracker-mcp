@@ -105,10 +105,10 @@ export async function getCellarStats(db: D1Database) {
     const results = await db.batch<Record<string, unknown>>([
         db.prepare(`
             SELECT
-                COALESCE(SUM(Quantity), 0) AS total_bottles,
+                COALESCE(SUM(Quantity), 0) AS bottles_in_cellar,
+                COALESCE(SUM(Pending), 0) AS bottles_pending_delivery,
                 COUNT(*) AS unique_wines
             FROM wines
-            WHERE Quantity > 0
         `),
         db.prepare(`
             SELECT Varietal, SUM(Quantity) AS bottle_count
@@ -116,7 +116,7 @@ export async function getCellarStats(db: D1Database) {
             WHERE Quantity > 0 AND Varietal IS NOT NULL AND Varietal != ''
             GROUP BY Varietal
             ORDER BY bottle_count DESC
-            LIMIT 10
+            LIMIT 20
         `),
         db.prepare(`
             SELECT Producer, SUM(Quantity) AS bottle_count
@@ -124,7 +124,7 @@ export async function getCellarStats(db: D1Database) {
             WHERE Quantity > 0 AND Producer IS NOT NULL AND Producer != ''
             GROUP BY Producer
             ORDER BY bottle_count DESC
-            LIMIT 10
+            LIMIT 20
         `),
         db.prepare(`
             SELECT COUNT(*) AS count
@@ -136,9 +136,28 @@ export async function getCellarStats(db: D1Database) {
                 AND EndConsume >= ?
         `).bind(new Date().getFullYear(), new Date().getFullYear()),
         db.prepare(`
-            SELECT COALESCE(SUM(Pending), 0) AS total_pending
+            SELECT Type, SUM(Quantity) AS bottle_count
             FROM wines
-            WHERE Pending > 0
+            WHERE Quantity > 0 AND Type IS NOT NULL AND Type != ''
+            GROUP BY Type
+            ORDER BY bottle_count DESC
+            LIMIT 20
+        `),
+        db.prepare(`
+            SELECT Country, SUM(Quantity) AS bottle_count
+            FROM wines
+            WHERE Quantity > 0 AND Country IS NOT NULL AND Country != ''
+            GROUP BY Country
+            ORDER BY bottle_count DESC
+            LIMIT 20
+        `),
+        db.prepare(`
+            SELECT Region, Country, SUM(Quantity) AS bottle_count
+            FROM wines
+            WHERE Quantity > 0 AND Region IS NOT NULL AND Region != ''
+            GROUP BY Region
+            ORDER BY bottle_count DESC
+            LIMIT 20
         `)
     ]);
 
@@ -146,13 +165,17 @@ export async function getCellarStats(db: D1Database) {
     const varietals = results[1] ?? { results: [] };
     const producers = results[2] ?? { results: [] };
     const drinkingWindow = results[3] ?? { results: [] };
-    const pending = results[4] ?? { results: [] };
+    const types = results[4] ?? { results: [] };
+    const countries = results[5] ?? { results: [] };
+    const regions = results[6] ?? { results: [] };
 
     return {
         totals: totals.results[0],
-        total_pending: (pending.results[0] as Record<string, unknown> | undefined)?.['total_pending'] ?? 0,
-        top_varietals: varietals.results,
+        top_countries: countries.results,
+        top_regions: regions.results,
         top_producers: producers.results,
+        top_types: types.results,
+        top_varietals: varietals.results,
         in_drinking_window: (drinkingWindow.results[0] as Record<string, unknown> | undefined)?.['count'] ?? 0
     };
 }

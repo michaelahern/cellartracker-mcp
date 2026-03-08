@@ -94,25 +94,36 @@ export class CellarTrackerMCP extends McpAgent {
             const password = await this.env.CELLARTRACKER_PASSWORD.get();
 
             await initSchema(db);
-            const [bottles, wines] = await Promise.all([
+            const [bottleResult, wineResult] = await Promise.all([
                 fetchBottles(username, password),
                 fetchWines(username, password)
             ]);
-            await truncateAndInsertBottles(db, bottles);
-            await truncateAndInsertWines(db, wines);
+            await truncateAndInsertBottles(db, bottleResult.rows);
+            await truncateAndInsertWines(db, wineResult.rows);
 
             const counts = await db.batch([
                 db.prepare('SELECT COUNT(*) AS count FROM bottles'),
                 db.prepare('SELECT COUNT(*) AS count FROM wines')
             ]);
-            const bottleCount = (counts[0]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
-            const wineCount = (counts[1]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
+            const bottleDbCount = (counts[0]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
+            const wineDbCount = (counts[1]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
+
+            const wd = wineResult.diagnostics;
+            const bd = bottleResult.diagnostics;
+            const lines = [
+                `Refreshed inventory data at ${new Date().toISOString()}.`,
+                `Wines: ${wd.responseBytes} bytes fetched, ${wd.parsedRows} rows parsed, ${wineDbCount} stored in DB.`,
+                `Bottles: ${bd.responseBytes} bytes fetched, ${bd.parsedRows} rows parsed, ${bottleDbCount} stored in DB.`
+            ];
+            if (wd.parseErrors > 0) {
+                lines.push(`Wine parse errors: ${wd.parseErrors}. First: ${wd.firstError ?? 'unknown'}`);
+            }
+            if (bd.parseErrors > 0) {
+                lines.push(`Bottle parse errors: ${bd.parseErrors}. First: ${bd.firstError ?? 'unknown'}`);
+            }
 
             return {
-                content: [{
-                    type: 'text' as const,
-                    text: `Refreshed inventory data at ${new Date().toISOString()}.\nFetched: ${wines.length} wines, ${bottles.length} bottles.\nStored in DB: ${wineCount} wines, ${bottleCount} bottles.`
-                }]
+                content: [{ type: 'text' as const, text: lines.join('\n') }]
             };
         });
     }

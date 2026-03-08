@@ -1,10 +1,10 @@
 export async function initSchema(db: D1Database) {
     await db.batch([
         db.prepare(
-            'CREATE TABLE IF NOT EXISTS bottles (Barcode TEXT PRIMARY KEY, iWine TEXT, Location TEXT, Bin TEXT, StoreName TEXT, PurchaseDate TEXT, Size TEXT, Vintage REAL, Wine TEXT, Country TEXT, Region TEXT, SubRegion TEXT, Appellation TEXT, Producer TEXT, Type TEXT, Color TEXT, Category TEXT, Varietal TEXT, Designation TEXT, Vineyard TEXT, WA REAL, VM REAL, JD REAL, CT REAL, MY REAL, BeginConsume REAL, EndConsume REAL)'
+            'CREATE TABLE IF NOT EXISTS bottles (Barcode INTEGER PRIMARY KEY, iWine INTEGER, Location TEXT, Bin TEXT, StoreName TEXT, PurchaseDate TEXT, Size TEXT, Vintage INTEGER, Wine TEXT, Country TEXT, Region TEXT, SubRegion TEXT, Appellation TEXT, Producer TEXT, Type TEXT, Color TEXT, Category TEXT, Varietal TEXT, Designation TEXT, Vineyard TEXT, WA INTEGER, VM INTEGER, JD INTEGER, CT INTEGER, MY INTEGER, BeginConsume INTEGER, EndConsume INTEGER)'
         ),
         db.prepare(
-            'CREATE TABLE IF NOT EXISTS wines (iWine TEXT PRIMARY KEY, Quantity REAL, Pending REAL, Size TEXT, Vintage REAL, Wine TEXT, Country TEXT, Region TEXT, SubRegion TEXT, Appellation TEXT, Producer TEXT, Type TEXT, Color TEXT, Category TEXT, Varietal TEXT, Designation TEXT, Vineyard TEXT, WA REAL, VM REAL, JD REAL, CT REAL, MY REAL, BeginConsume REAL, EndConsume REAL)'
+            'CREATE TABLE IF NOT EXISTS wines (iWine INTEGER PRIMARY KEY, Quantity INTEGER, Pending INTEGER, Size TEXT, Vintage INTEGER, Wine TEXT, Country TEXT, Region TEXT, SubRegion TEXT, Appellation TEXT, Producer TEXT, Type TEXT, Color TEXT, Category TEXT, Varietal TEXT, Designation TEXT, Vineyard TEXT, WA INTEGER, VM INTEGER, JD INTEGER, CT INTEGER, MY INTEGER, BeginConsume INTEGER, EndConsume INTEGER)'
         )
     ]);
 }

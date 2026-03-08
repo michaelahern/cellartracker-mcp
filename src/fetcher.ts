@@ -1,6 +1,18 @@
 import Papa from 'papaparse';
 
 const COLUMN_RENAMES: Record<string, string> = { RR: 'JD', AG: 'VM' };
+const SCORE_COLUMNS = new Set(['WA', 'AG', 'RR', 'CT', 'MY']);
+
+function normalizeScore(val: unknown): number | null {
+    if (typeof val === 'number') return Number.isFinite(val) ? val : null;
+    if (typeof val !== 'string') return null;
+    // Strip parentheses, e.g. "(97-99)" -> "97-99"
+    const cleaned = val.replace(/[()]/g, '').trim();
+    if (cleaned === '') return null;
+    // "96-98" -> take first number; "98+" -> parseFloat ignores trailing +
+    const parsed = parseFloat(cleaned);
+    return Number.isFinite(parsed) ? Math.round(parsed) : null;
+}
 
 const COLUMNS_BOTTLES = new Set([
     'Barcode', 'iWine', 'Location', 'Bin', 'StoreName', 'PurchaseDate',
@@ -41,7 +53,7 @@ function parseCellarTrackerTable(responseText: string, columns: Set<string>): Fe
         for (const [key, val] of Object.entries(row as Record<string, unknown>)) {
             if (!columns.has(key)) continue;
             const newKey = COLUMN_RENAMES[key] ?? key;
-            out[newKey] = val;
+            out[newKey] = SCORE_COLUMNS.has(key) ? normalizeScore(val) : val;
         }
         return out;
     });

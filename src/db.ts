@@ -293,10 +293,10 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
             CASE b.BottleState WHEN 1 THEN 'in_cellar' WHEN 0 THEN 'consumed' WHEN -1 THEN 'pending_delivery' END AS bottle_state,
             CASE WHEN (b.BottleState <= 0 OR b.Location = 'none') THEN NULL ELSE b.Location END AS location,
             (SELECT GROUP_CONCAT(bin_summary, '; ') FROM (SELECT bb.Bin || ' (x' || COUNT(*) || ')' AS bin_summary FROM bottles bb WHERE bb.iWine = b.iWine AND bb.BottleState = b.BottleState AND bb.Location = b.Location AND bb.BottleState = 1 GROUP BY bb.Bin)) AS bins,
-            CASE WHEN b.BottleState = 1 THEN COUNT(*) ELSE NULL END AS bottles_at_this_location,
+            CASE WHEN b.BottleState = 1 THEN COUNT(*) ELSE NULL END AS bottles_in_cellar_this_location,
             CASE WHEN b.BottleState = 0 THEN COUNT(*) ELSE NULL END AS bottles_consumed, CASE WHEN b.BottleState = 0 THEN MAX(b.ConsumptionDate) ELSE NULL END AS last_consumption_date,
             CASE WHEN b.BottleState = -1 THEN COUNT(*) ELSE NULL END AS bottles_pending_delivery, CASE WHEN b.BottleState = -1 THEN MIN(b.DeliveryDate) ELSE NULL END AS next_delivery_date, 
-            COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS total_bottles_remaining_in_cellar,
+            COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS total_bottles_remaining_all_locations,
             CASE
                 WHEN ROUND(AVG(b.BottleCost)) IS NULL THEN NULL
                 WHEN b.BottleCostCurrency = 'USD' THEN '$' || CAST(CAST(ROUND(AVG(b.BottleCost)) AS INTEGER) AS TEXT)
@@ -402,7 +402,7 @@ export async function searchWines(db: D1Database, filters: WineSearchFilters) {
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const sql = `
         SELECT w.Wine AS wine, w.Vintage AS vintage, w.Size AS size,
-            COALESCE(w.Quantity, 0) AS bottles_in_cellar, COALESCE(w.Pending, 0) AS bottles_pending_delivery, COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS bottles_remaining,
+            COALESCE(w.Quantity, 0) AS bottles_in_cellar, COALESCE(w.Pending, 0) AS bottles_pending_delivery, COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS total_bottles_remaining,
             (SELECT COUNT(*) FROM bottles b WHERE b.iWine = w.iWine AND b.BottleState = 0) AS bottles_consumed,
             w.Country AS country, w.Region AS region, w.SubRegion AS sub_region, w.Appellation AS appellation,
             w.Producer AS producer, w.Type AS type, w.Varietal AS varietal, w.Designation AS designation, w.Vineyard AS vineyard,

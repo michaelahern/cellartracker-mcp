@@ -289,7 +289,7 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
                 WHEN b.BeginConsume <= CAST(strftime('%Y', 'now') AS INTEGER) AND b.EndConsume >= CAST(strftime('%Y', 'now') AS INTEGER) THEN 'now'
                 WHEN b.BeginConsume > CAST(strftime('%Y', 'now') AS INTEGER) THEN 'future'
             END AS drinking_window_status
-        FROM bottles2 b
+        FROM bottles b
         LEFT JOIN wines w ON b.iWine = w.iWine
         LEFT JOIN (SELECT iWine, Score, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'The Wine Palate') twp ON w.iWine = twp.iWine AND twp.rn = 1
         LEFT JOIN (SELECT iWine, Score, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'Wine Advocate') wa ON w.iWine = wa.iWine AND wa.rn = 1

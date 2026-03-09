@@ -5,20 +5,6 @@ import { z } from 'zod';
 import { getCellarStats, initSchema, searchBottles, searchWines, truncateAndInsertBottles, truncateAndInsertReviews, truncateAndInsertWines } from './db.js';
 import { fetchBottles, fetchReviews, fetchWines } from './fetcher.js';
 
-function formatResults(results: unknown[], label: string): { content: { type: 'text'; text: string }[] } {
-    if (results.length === 0) {
-        return {
-            content: [{
-                type: 'text' as const,
-                text: `No ${label} found. You may need to run the refresh_data tool first to populate the database.`
-            }]
-        };
-    }
-    return {
-        content: [{ type: 'text' as const, text: JSON.stringify(results, null, 2) }]
-    };
-}
-
 export class CellarTrackerMCP extends McpAgent {
     server = new McpServer({
         name: 'cellartracker',
@@ -39,32 +25,8 @@ export class CellarTrackerMCP extends McpAgent {
             const db = this.env.CELLARTRACKER_DB;
             const stats = await getCellarStats(db);
             return {
-                content: [{ type: 'text' as const, text: JSON.stringify(stats, null, 2) }]
+                content: [{ type: 'text', text: JSON.stringify(stats, null, 2) }]
             };
-        });
-
-        this.server.registerTool('search_bottles', {
-            title: 'Search Bottles',
-            description: 'Search individual bottles in your cellar with optional filters. Returns up to 200 bottles with location/bin details.',
-            inputSchema: {
-                bottle_state: z.enum(['in_cellar', 'consumed', 'pending_delivery']).optional().describe('Filter by bottle state (default: in_cellar)'),
-                vintage_min: z.number().optional().describe('Minimum vintage year'),
-                vintage_max: z.number().optional().describe('Maximum vintage year'),
-                location: z.string().optional().describe('Filter by storage location (partial match)'),
-                country: z.string().optional().describe('Filter by country (partial match)'),
-                region: z.string().optional().describe('Filter by region (partial match)'),
-                sub_region: z.string().optional().describe('Filter by sub-region (partial match)'),
-                appellation: z.string().optional().describe('Filter by appellation (partial match)'),
-                producer: z.string().optional().describe('Filter by producer name (partial match)'),
-                type: z.string().optional().describe('Filter by wine type, e.g. Red, White, Sparkling (partial match)'),
-                varietal: z.string().optional().describe('Filter by varietal/grape (partial match)'),
-                min_score: z.number().optional().describe('Minimum score from any critic (JD, TWP, VM, WA)'),
-                in_drinking_window: z.boolean().optional().describe('Filter by whether the bottle is currently in its drinking window')
-            }
-        }, async (params) => {
-            const db = this.env.CELLARTRACKER_DB;
-            const result = await searchBottles(db, params);
-            return formatResults(result.results, 'bottles');
         });
 
         this.server.registerTool('search_wines', {
@@ -92,11 +54,45 @@ export class CellarTrackerMCP extends McpAgent {
 
             if (result.results.length === 0) {
                 return {
-                    content: [{ type: 'text' as const, text: 'No wines found matching your criteria.' }]
+                    content: [{ type: 'text', text: 'No wines found matching your criteria.' }]
                 };
             }
+
             return {
-                content: [{ type: 'text' as const, text: JSON.stringify(result.results, null, 2) }]
+                content: [{ type: 'text', text: JSON.stringify(result.results, null, 2) }]
+            };
+        });
+
+        this.server.registerTool('search_bottles', {
+            title: 'Search Bottles',
+            description: 'Search individual bottles in your cellar with optional filters. Returns up to 200 bottles with location/bin details.',
+            inputSchema: {
+                bottle_state: z.enum(['in_cellar', 'consumed', 'pending_delivery']).optional().describe('Filter by bottle state (default: in_cellar)'),
+                vintage_min: z.number().optional().describe('Minimum vintage year'),
+                vintage_max: z.number().optional().describe('Maximum vintage year'),
+                location: z.string().optional().describe('Filter by storage location (partial match)'),
+                country: z.string().optional().describe('Filter by country (partial match)'),
+                region: z.string().optional().describe('Filter by region (partial match)'),
+                sub_region: z.string().optional().describe('Filter by sub-region (partial match)'),
+                appellation: z.string().optional().describe('Filter by appellation (partial match)'),
+                producer: z.string().optional().describe('Filter by producer name (partial match)'),
+                type: z.string().optional().describe('Filter by wine type, e.g. Red, White, Sparkling (partial match)'),
+                varietal: z.string().optional().describe('Filter by varietal/grape (partial match)'),
+                min_score: z.number().optional().describe('Minimum score from any critic (JD, TWP, VM, WA)'),
+                in_drinking_window: z.boolean().optional().describe('Filter by whether the bottle is currently in its drinking window')
+            }
+        }, async (params) => {
+            const db = this.env.CELLARTRACKER_DB;
+            const result = await searchBottles(db, params);
+
+            if (result.results.length === 0) {
+                return {
+                    content: [{ type: 'text', text: 'No wine bottles found matching your criteria.' }]
+                };
+            }
+
+            return {
+                content: [{ type: 'text', text: JSON.stringify(result.results, null, 2) }]
             };
         });
 
@@ -153,7 +149,7 @@ export class CellarTrackerMCP extends McpAgent {
             }
 
             return {
-                content: [{ type: 'text' as const, text: lines.join('\n') }]
+                content: [{ type: 'text', text: lines.join('\n') }]
             };
         });
     }

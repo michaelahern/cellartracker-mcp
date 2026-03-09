@@ -8,22 +8,9 @@ An unofficial [CellarTracker](https://www.cellartracker.com/) [Remote MCP Server
 
 This will deploy your MCP server to a URL like: `cellartracker-mcp.<your-account>.workers.dev/mcp`
 
-### D1 Database Setup
+## Tools
 
-This server stores wine inventory in a Cloudflare D1 database for efficient querying.
-
-1. Create the D1 database:
-   ```sh
-   wrangler d1 create cellartracker-mcp
-   ```
-2. Copy the `database_id` from the output and paste it into `wrangler.jsonc` under `d1_databases`.
-3. Deploy with `wrangler deploy`.
-4. Use the `refresh_data` tool to populate the database with your CellarTracker inventory.
-
-### Tools
-
-- **search_wines** - Search your inventory with filters (producer, varietal, vintage, location, score). Returns up to 50 results.
-- **get_cellar_stats** - Aggregate statistics: total bottles, value, top varietals/producers, wines in drinking window.
-- **get_drinking_windows** - Wines in or approaching their drinking window. Returns up to 100 results.
-- **get_wines_by_location** - Find wines by storage location. Returns up to 200 results.
-- **refresh_data** - Fetch latest inventory from CellarTracker and store in D1. Run after making changes in CellarTracker.
+- **get_cellar_stats** - Get aggregate statistics about your cellar.
+- **search_wines** - Search wines in your cellar/collection with optional filters.
+- **search_bottles** - Search individual bottles in your cellar with optional filters.
+- **refresh_data** - Fetch the latest wine cellar inventory data from CellarTracker and store it in the database.

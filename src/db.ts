@@ -34,6 +34,8 @@ export async function initSchema(db: D1Database) {
         db.prepare('CREATE INDEX IF NOT EXISTS idx_bottles_state ON bottles (BottleState)'),
         db.prepare('CREATE INDEX IF NOT EXISTS idx_reviews_wine ON reviews (iWine)'),
         db.prepare('CREATE INDEX IF NOT EXISTS idx_reviews_wine_reviewdate ON reviews (iWine, ReviewDate DESC)'),
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_reviews_wine_reviewdate_publication ON reviews (iWine, ReviewDate DESC, Publication)'),
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_reviews_wine_publication_reviewdate ON reviews (iWine, Publication, ReviewDate DESC)'),
         db.prepare('CREATE INDEX IF NOT EXISTS idx_reviews_publication_wine_reviewdate ON reviews (Publication, iWine, ReviewDate DESC)')
     ]);
 }
@@ -124,7 +126,7 @@ export async function getCellarStats(db: D1Database) {
         `),
         db.prepare(`
             SELECT w.Varietal AS varietal, COALESCE(SUM(w.Quantity), 0) AS bottles_in_stock, COALESCE(SUM(w.Quantity), 0) + COALESCE(SUM(w.Pending), 0) AS bottles_in_cellar,
-                '$' || CAST(CAST(ROUND(SUM(bc.cost_sum) * 1.0 / SUM(bc.bottle_count)) AS INTEGER) AS TEXT) AS avg_cost,
+                '$' || CAST(CAST(ROUND(SUM(bc.cost_sum) * 1.0 / SUM(bc.bottle_count)) AS INTEGER) AS TEXT) AS avg_bottle_cost,
                 ROUND(AVG(CASE WHEN w.JD IS NOT NULL THEN w.JD END), 1) AS avg_score_jd, ROUND(AVG(CASE WHEN twp.Score IS NOT NULL THEN twp.Score END), 1) AS avg_score_twp,
                 ROUND(AVG(CASE WHEN w.VM IS NOT NULL THEN w.VM END), 1) AS avg_score_vm, ROUND(AVG(CASE WHEN w.WA IS NOT NULL THEN w.WA END), 1) AS avg_score_wa
             FROM wines w
@@ -137,7 +139,7 @@ export async function getCellarStats(db: D1Database) {
         `),
         db.prepare(`
             SELECT w.Producer AS producer, COALESCE(SUM(w.Quantity), 0) AS bottles_in_stock, COALESCE(SUM(w.Quantity), 0) + COALESCE(SUM(w.Pending), 0) AS bottles_in_cellar,
-                '$' || CAST(CAST(ROUND(SUM(bc.cost_sum) * 1.0 / SUM(bc.bottle_count)) AS INTEGER) AS TEXT) AS avg_cost,
+                '$' || CAST(CAST(ROUND(SUM(bc.cost_sum) * 1.0 / SUM(bc.bottle_count)) AS INTEGER) AS TEXT) AS avg_bottle_cost,
                 ROUND(AVG(CASE WHEN w.JD IS NOT NULL THEN w.JD END), 1) AS avg_score_jd, ROUND(AVG(CASE WHEN twp.Score IS NOT NULL THEN twp.Score END), 1) AS avg_score_twp,
                 ROUND(AVG(CASE WHEN w.VM IS NOT NULL THEN w.VM END), 1) AS avg_score_vm, ROUND(AVG(CASE WHEN w.WA IS NOT NULL THEN w.WA END), 1) AS avg_score_wa
             FROM wines w
@@ -300,16 +302,13 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
             CASE b.BottleState WHEN 1 THEN 'in_cellar' WHEN 0 THEN 'consumed' WHEN -1 THEN 'pending_delivery' END AS bottle_state,
             CASE WHEN (b.BottleState <= 0 OR b.Location = 'none') THEN NULL ELSE b.Location END AS location,
             (SELECT GROUP_CONCAT(bin_summary, '; ') FROM (SELECT bb.Bin || ' (x' || COUNT(*) || ')' AS bin_summary FROM bottles bb WHERE bb.iWine = b.iWine AND bb.BottleState = b.BottleState AND bb.Location = b.Location AND bb.BottleState = 1 GROUP BY bb.Bin)) AS bins,
-            CASE WHEN b.BottleState = 1 THEN COUNT(*) ELSE NULL END AS bottles_in_cellar_this_location,
-            CASE WHEN b.BottleState = 0 THEN COUNT(*) ELSE NULL END AS bottles_consumed, CASE WHEN b.BottleState = 0 THEN MAX(b.ConsumptionDate) ELSE NULL END AS last_consumption_date,
+            CASE WHEN b.BottleState = 1 THEN COUNT(*) ELSE NULL END AS bottles_in_stock_this_location,
+            CASE WHEN b.BottleState = 0 THEN COUNT(*) ELSE NULL END AS bottles_consumed, CASE WHEN b.BottleState = 0 THEN MAX(b.ConsumptionDate) ELSE NULL END AS last_consumed_date,
             CASE WHEN b.BottleState = -1 THEN COUNT(*) ELSE NULL END AS bottles_pending_delivery, CASE WHEN b.BottleState = -1 THEN MIN(b.DeliveryDate) ELSE NULL END AS next_delivery_date, 
-            COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS total_bottles_remaining_all_locations,
+            COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS bottles_in_cellar,
             CASE
                 WHEN ROUND(AVG(b.BottleCost)) IS NULL THEN NULL
-                WHEN b.BottleCostCurrency = 'USD' THEN '$' || CAST(CAST(ROUND(AVG(b.BottleCost)) AS INTEGER) AS TEXT)
-                WHEN b.BottleCostCurrency = 'EUR' THEN '€' || CAST(CAST(ROUND(AVG(b.BottleCost)) AS INTEGER) AS TEXT)
-                WHEN b.BottleCostCurrency = 'GBP' THEN '£' || CAST(CAST(ROUND(AVG(b.BottleCost)) AS INTEGER) AS TEXT)
-                ELSE b.BottleCostCurrency || ' ' || CAST(CAST(ROUND(AVG(b.BottleCost)) AS INTEGER) AS TEXT)
+                ELSE '$' || CAST(CAST(ROUND(AVG(b.BottleCost)) AS INTEGER) AS TEXT)
             END AS avg_bottle_cost,
             b.Country AS country, b.Region AS region, b.SubRegion AS sub_region, b.Appellation AS appellation,
             b.Producer AS producer, b.Type AS type, b.Varietal AS varietal, b.Designation AS designation, b.Vineyard AS vineyard,
@@ -413,7 +412,7 @@ export async function searchWines(db: D1Database, filters: WineSearchFilters) {
             (SELECT COUNT(*) FROM bottles b WHERE b.iWine = w.iWine AND b.BottleState = 0) AS bottles_consumed,
             w.Country AS country, w.Region AS region, w.SubRegion AS sub_region, w.Appellation AS appellation,
             w.Producer AS producer, w.Type AS type, w.Varietal AS varietal, w.Designation AS designation, w.Vineyard AS vineyard,
-            '$' || CAST(CAST(ROUND(bc.avg_cost) AS INTEGER) AS TEXT) AS avg_cost,
+            '$' || CAST(CAST(ROUND(bc.avg_bottle_cost) AS INTEGER) AS TEXT) AS avg_bottle_cost,
             w.JD AS score_jd, twp.Score AS score_twp, twp.ReviewText AS review_twp, w.VM AS score_vm, wa.Score AS score_wa, wa.ReviewText AS review_wa,
             w.BeginConsume AS begin_consume_year, w.EndConsume AS end_consume_year,
             CASE
@@ -423,7 +422,7 @@ export async function searchWines(db: D1Database, filters: WineSearchFilters) {
                 WHEN w.BeginConsume > CAST(strftime('%Y', 'now') AS INTEGER) THEN 'future'
             END AS drinking_window_status
         FROM wines w
-        LEFT JOIN (SELECT iWine, AVG(BottleCost) AS avg_cost FROM bottles WHERE BottleState IN (-1, 1) AND BottleCost IS NOT NULL AND BottleCost != 0 GROUP BY iWine) bc ON w.iWine = bc.iWine
+        LEFT JOIN (SELECT iWine, AVG(BottleCost) AS avg_bottle_cost FROM bottles WHERE BottleState IN (-1, 1) AND BottleCost IS NOT NULL AND BottleCost != 0 GROUP BY iWine) bc ON w.iWine = bc.iWine
         LEFT JOIN (SELECT iWine, Score, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'The Wine Palate') twp ON w.iWine = twp.iWine AND twp.rn = 1
         LEFT JOIN (SELECT iWine, Score, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'Wine Advocate') wa ON w.iWine = wa.iWine AND wa.rn = 1
         ${where}

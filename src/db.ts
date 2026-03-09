@@ -82,18 +82,21 @@ export async function getCellarStats(db: D1Database) {
     const results = await db.batch<Record<string, unknown>>([
         db.prepare(`
             SELECT
-                COALESCE(SUM(Quantity), 0) AS bottles_in_cellar,
+                COALESCE(SUM(Quantity), 0) AS bottles_in_stock,
                 COALESCE(SUM(Pending), 0) AS bottles_pending_delivery,
-                COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total,
-                COUNT(*) AS unique_wines
+                COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_in_cellar,
+                COUNT(*) AS unique_wines_in_cellar,
+                '$' || CAST(CAST(ROUND((SELECT SUM(BottleCost) FROM bottles WHERE (BottleState = 1 OR BottleState = -1))) AS INTEGER) AS TEXT) AS total_cellar_value,
+                (SELECT COUNT(*) FROM bottles WHERE BottleState = 0) AS bottles_consumed,
+                (SELECT COUNT(*) FROM bottles) AS bottles_purchased
             FROM wines
         `),
         db.prepare(`
-            SELECT Location AS location, COUNT(*) AS bottles_total
+            SELECT Location AS location, COUNT(*) AS bottles_in_stock
             FROM bottles
             WHERE BottleState = 1 AND Location IS NOT NULL AND Location != ''
             GROUP BY Location
-            ORDER BY bottles_total DESC
+            ORDER BY bottles_in_stock DESC
             LIMIT 100
         `),
         db.prepare(`
@@ -104,73 +107,77 @@ export async function getCellarStats(db: D1Database) {
                     WHEN BeginConsume > CAST(strftime('%Y', 'now') AS INTEGER) THEN 'starting ' || CAST(BeginConsume AS TEXT)
                     ELSE 'unknown'
                 END AS window,
-                COALESCE(SUM(Quantity), 0) AS bottles_in_cellar,
-                COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
+                COALESCE(SUM(Quantity), 0) AS bottles_in_stock,
+                COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_in_cellar
             FROM wines
             WHERE BeginConsume IS NOT NULL AND EndConsume IS NOT NULL
             GROUP BY window
             ORDER BY window ASC
         `),
         db.prepare(`
-            SELECT Type AS type, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
+            SELECT Type AS type, COALESCE(SUM(Quantity), 0) AS bottles_in_stock, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_in_cellar
             FROM wines
             WHERE Type IS NOT NULL AND Type != '' AND Type != 'Unknown'
             GROUP BY Type
-            ORDER BY bottles_total DESC
+            ORDER BY bottles_in_cellar DESC
             LIMIT 100
         `),
         db.prepare(`
-            SELECT w.Varietal AS varietal, COALESCE(SUM(w.Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(w.Quantity), 0) + COALESCE(SUM(w.Pending), 0) AS bottles_total,
+            SELECT w.Varietal AS varietal, COALESCE(SUM(w.Quantity), 0) AS bottles_in_stock, COALESCE(SUM(w.Quantity), 0) + COALESCE(SUM(w.Pending), 0) AS bottles_in_cellar,
+                '$' || CAST(CAST(ROUND(SUM(bc.cost_sum) * 1.0 / SUM(bc.bottle_count)) AS INTEGER) AS TEXT) AS avg_cost,
                 ROUND(AVG(CASE WHEN w.JD IS NOT NULL THEN w.JD END), 1) AS avg_score_jd, ROUND(AVG(CASE WHEN twp.Score IS NOT NULL THEN twp.Score END), 1) AS avg_score_twp,
                 ROUND(AVG(CASE WHEN w.VM IS NOT NULL THEN w.VM END), 1) AS avg_score_vm, ROUND(AVG(CASE WHEN w.WA IS NOT NULL THEN w.WA END), 1) AS avg_score_wa
             FROM wines w
             LEFT JOIN (SELECT iWine, Score, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'The Wine Palate') twp ON w.iWine = twp.iWine AND twp.rn = 1
+            LEFT JOIN (SELECT iWine, SUM(BottleCost) AS cost_sum, COUNT(BottleCost) AS bottle_count FROM bottles WHERE BottleState IN (-1, 1) AND BottleCost IS NOT NULL AND BottleCost != 0 GROUP BY iWine) bc ON w.iWine = bc.iWine
             WHERE w.Varietal IS NOT NULL AND w.Varietal != '' AND w.Varietal != 'Unknown'
             GROUP BY w.Varietal
-            ORDER BY bottles_total DESC
+            ORDER BY bottles_in_cellar DESC
             LIMIT 100
         `),
         db.prepare(`
-            SELECT w.Producer AS producer, COALESCE(SUM(w.Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(w.Quantity), 0) + COALESCE(SUM(w.Pending), 0) AS bottles_total,
+            SELECT w.Producer AS producer, COALESCE(SUM(w.Quantity), 0) AS bottles_in_stock, COALESCE(SUM(w.Quantity), 0) + COALESCE(SUM(w.Pending), 0) AS bottles_in_cellar,
+                '$' || CAST(CAST(ROUND(SUM(bc.cost_sum) * 1.0 / SUM(bc.bottle_count)) AS INTEGER) AS TEXT) AS avg_cost,
                 ROUND(AVG(CASE WHEN w.JD IS NOT NULL THEN w.JD END), 1) AS avg_score_jd, ROUND(AVG(CASE WHEN twp.Score IS NOT NULL THEN twp.Score END), 1) AS avg_score_twp,
                 ROUND(AVG(CASE WHEN w.VM IS NOT NULL THEN w.VM END), 1) AS avg_score_vm, ROUND(AVG(CASE WHEN w.WA IS NOT NULL THEN w.WA END), 1) AS avg_score_wa
             FROM wines w
             LEFT JOIN (SELECT iWine, Score, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'The Wine Palate') twp ON w.iWine = twp.iWine AND twp.rn = 1
+            LEFT JOIN (SELECT iWine, SUM(BottleCost) AS cost_sum, COUNT(BottleCost) AS bottle_count FROM bottles WHERE BottleState IN (-1, 1) AND BottleCost IS NOT NULL AND BottleCost != 0 GROUP BY iWine) bc ON w.iWine = bc.iWine
             WHERE w.Producer IS NOT NULL AND w.Producer != '' AND w.Producer != 'Unknown'
             GROUP BY w.Producer
-            ORDER BY bottles_total DESC
+            ORDER BY bottles_in_cellar DESC
             LIMIT 100
         `),
         db.prepare(`
-            SELECT Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
+            SELECT Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_stock, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_in_cellar
             FROM wines
             WHERE Country IS NOT NULL AND Country != '' AND Country != 'Unknown'
             GROUP BY Country
-            ORDER BY bottles_total DESC
+            ORDER BY bottles_in_cellar DESC
             LIMIT 50
         `),
         db.prepare(`
-            SELECT Region AS region, Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
+            SELECT Region AS region, Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_stock, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_in_cellar
             FROM wines
             WHERE Region IS NOT NULL AND Region != '' AND Region != 'Unknown'
             GROUP BY Region
-            ORDER BY bottles_total DESC
+            ORDER BY bottles_in_cellar DESC
             LIMIT 50
         `),
         db.prepare(`
-            SELECT SubRegion AS sub_region, Region AS region, Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
+            SELECT SubRegion AS sub_region, Region AS region, Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_stock, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_in_cellar
             FROM wines
             WHERE SubRegion IS NOT NULL AND SubRegion != '' AND SubRegion != 'Unknown'
             GROUP BY SubRegion
-            ORDER BY bottles_total DESC
+            ORDER BY bottles_in_cellar DESC
             LIMIT 50
         `),
         db.prepare(`
-            SELECT Appellation AS appellation, SubRegion AS sub_region, Region AS region, Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
+            SELECT Appellation AS appellation, SubRegion AS sub_region, Region AS region, Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_stock, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_in_cellar
             FROM wines
             WHERE Appellation IS NOT NULL AND Appellation != '' AND Appellation != 'Unknown'
             GROUP BY Appellation
-            ORDER BY bottles_total DESC
+            ORDER BY bottles_in_cellar DESC
             LIMIT 50
         `)
     ]);
@@ -402,10 +409,11 @@ export async function searchWines(db: D1Database, filters: WineSearchFilters) {
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const sql = `
         SELECT w.Wine AS wine, w.Vintage AS vintage, w.Size AS size,
-            COALESCE(w.Quantity, 0) AS bottles_in_cellar, COALESCE(w.Pending, 0) AS bottles_pending_delivery, COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS total_bottles_remaining,
+            COALESCE(w.Quantity, 0) AS bottles_in_stock, COALESCE(w.Pending, 0) AS bottles_pending_delivery, COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS bottles_in_cellar,
             (SELECT COUNT(*) FROM bottles b WHERE b.iWine = w.iWine AND b.BottleState = 0) AS bottles_consumed,
             w.Country AS country, w.Region AS region, w.SubRegion AS sub_region, w.Appellation AS appellation,
             w.Producer AS producer, w.Type AS type, w.Varietal AS varietal, w.Designation AS designation, w.Vineyard AS vineyard,
+            '$' || CAST(CAST(ROUND(bc.avg_cost) AS INTEGER) AS TEXT) AS avg_cost,
             w.JD AS score_jd, twp.Score AS score_twp, twp.ReviewText AS review_twp, w.VM AS score_vm, wa.Score AS score_wa, wa.ReviewText AS review_wa,
             w.BeginConsume AS begin_consume_year, w.EndConsume AS end_consume_year,
             CASE
@@ -415,11 +423,13 @@ export async function searchWines(db: D1Database, filters: WineSearchFilters) {
                 WHEN w.BeginConsume > CAST(strftime('%Y', 'now') AS INTEGER) THEN 'future'
             END AS drinking_window_status
         FROM wines w
+        LEFT JOIN (SELECT iWine, AVG(BottleCost) AS avg_cost FROM bottles WHERE BottleState IN (-1, 1) AND BottleCost IS NOT NULL AND BottleCost != 0 GROUP BY iWine) bc ON w.iWine = bc.iWine
         LEFT JOIN (SELECT iWine, Score, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'The Wine Palate') twp ON w.iWine = twp.iWine AND twp.rn = 1
         LEFT JOIN (SELECT iWine, Score, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'Wine Advocate') wa ON w.iWine = wa.iWine AND wa.rn = 1
         ${where}
         ORDER BY w.Wine, w.Vintage
-        LIMIT 100`;
+        LIMIT 100
+        `;
 
     return db.prepare(sql).bind(...params).all();
 }

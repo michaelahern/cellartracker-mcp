@@ -1,19 +1,39 @@
 import Papa from 'papaparse';
 
+const WINES_COLUMNS = new Set([
+    'iWine', 'Quantity', 'Pending',
+    'Size', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation',
+    'Producer', 'Type', 'Color', 'Category', 'Varietal', 'Designation', 'Vineyard',
+    'WA', 'AG', 'RR', 'CT', 'MY', 'BeginConsume', 'EndConsume'
+]);
+
+const BOTTLE_COLUMNS = new Set([
+    'Barcode', 'iWine', 'BottleState', 'Location', 'Bin', 'Store', 'BottleCost', 'BottleCostCurrency', 'PurchaseDate', 'DeliveryDate', 'ConsumptionDate',
+    'BottleSize', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation',
+    'Producer', 'Type', 'Varietal', 'Designation', 'Vineyard',
+    'BeginConsume', 'EndConsume'
+]);
+
+const REVIEW_COLUMNS = new Set([
+    'iReview', 'iWine', 'Publication', 'ReviewDate', 'Reviewer',
+    'Score', 'ReviewText', 'ReviewURL', 'BeginConsume', 'EndConsume'
+]);
+
 const COLUMN_RENAMES: Record<string, string> = { RR: 'JD', AG: 'VM' };
 const DATE_COLUMNS = new Set(['ReviewDate', 'PurchaseDate', 'DeliveryDate', 'ConsumptionDate']);
 const SCORE_COLUMNS = new Set(['WA', 'AG', 'RR', 'CT', 'MY', 'Score']);
 
-const NAMED_HTML_ENTITIES: Record<string, string> = {
-    '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': '\''
-};
-
 function decodeHtmlEntities(text: string): string {
     if (!text.includes('&')) return text;
+
+    const named_html_entities: Record<string, string> = {
+        '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': '\''
+    };
+
     return text
         .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
         .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex as string, 16)))
-        .replace(/&(?:amp|lt|gt|quot|apos);/g, m => NAMED_HTML_ENTITIES[m] ?? m);
+        .replace(/&(?:amp|lt|gt|quot|apos);/g, m => named_html_entities[m] ?? m);
 }
 
 function normalizeDate(val: unknown): string | null {
@@ -27,39 +47,15 @@ function normalizeDate(val: unknown): string | null {
 function normalizeScore(val: unknown): number | null {
     if (typeof val === 'number') return Number.isFinite(val) ? Math.round(val) : null;
     if (typeof val !== 'string') return null;
+
     // Strip parentheses, e.g. "(97-99)" -> "97-99"
     const cleaned = val.replace(/[()]/g, '').trim();
     if (cleaned === '') return null;
+
     // "96-98" -> take first number; "98+" -> parseFloat ignores trailing +
     const parsed = parseFloat(cleaned);
     return Number.isFinite(parsed) ? Math.round(parsed) : null;
 }
-
-const COLUMNS_BOTTLES = new Set([
-    'Barcode', 'iWine', 'Location', 'Bin', 'StoreName', 'PurchaseDate',
-    'Size', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation',
-    'Producer', 'Type', 'Color', 'Category', 'Varietal', 'Designation', 'Vineyard',
-    'WA', 'AG', 'RR', 'CT', 'MY', 'BeginConsume', 'EndConsume'
-]);
-
-const COLUMNS_BOTTLES2 = new Set([
-    'Barcode', 'iWine', 'BottleState', 'Location', 'Bin', 'Store', 'BottleCost', 'BottleCostCurrency', 'PurchaseDate', 'DeliveryDate', 'ConsumptionDate',
-    'BottleSize', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation',
-    'Producer', 'Type', 'Varietal', 'Designation', 'Vineyard',
-    'BeginConsume', 'EndConsume'
-]);
-
-const COLUMNS_WINES = new Set([
-    'iWine', 'Quantity', 'Pending',
-    'Size', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation',
-    'Producer', 'Type', 'Color', 'Category', 'Varietal', 'Designation', 'Vineyard',
-    'WA', 'AG', 'RR', 'CT', 'MY', 'BeginConsume', 'EndConsume'
-]);
-
-const COLUMNS_REVIEWS = new Set([
-    'iReview', 'iWine', 'Publication', 'ReviewDate', 'Reviewer',
-    'Score', 'ReviewText', 'ReviewURL', 'BeginConsume', 'EndConsume'
-]);
 
 async function fetchCellarTrackerTable(username: string, password: string, table: string): Promise<string> {
     const url = `https://www.cellartracker.com/xlquery.asp?User=${encodeURIComponent(username)}&Password=${encodeURIComponent(password)}&Format=tab&Table=${encodeURIComponent(table)}`;
@@ -115,22 +111,17 @@ export interface FetchResult {
     };
 }
 
-export async function fetchBottles(username: string, password: string): Promise<FetchResult> {
-    const table = await fetchCellarTrackerTable(username, password, 'Inventory');
-    return parseCellarTrackerTable(table, COLUMNS_BOTTLES);
-}
-
-export async function fetchBottles2(username: string, password: string): Promise<FetchResult> {
-    const table = await fetchCellarTrackerTable(username, password, 'Bottles');
-    return parseCellarTrackerTable(table, COLUMNS_BOTTLES2);
-}
-
 export async function fetchWines(username: string, password: string): Promise<FetchResult> {
     const table = await fetchCellarTrackerTable(username, password, 'List');
-    return parseCellarTrackerTable(table, COLUMNS_WINES);
+    return parseCellarTrackerTable(table, WINES_COLUMNS);
+}
+
+export async function fetchBottles(username: string, password: string): Promise<FetchResult> {
+    const table = await fetchCellarTrackerTable(username, password, 'Bottles');
+    return parseCellarTrackerTable(table, BOTTLE_COLUMNS);
 }
 
 export async function fetchReviews(username: string, password: string): Promise<FetchResult> {
     const table = await fetchCellarTrackerTable(username, password, 'ProReview');
-    return parseCellarTrackerTable(table, COLUMNS_REVIEWS);
+    return parseCellarTrackerTable(table, REVIEW_COLUMNS);
 }

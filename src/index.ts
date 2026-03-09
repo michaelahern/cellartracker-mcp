@@ -1,8 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
 import { z } from 'zod';
-import { initSchema, truncateAndInsertBottles, truncateAndInsertBottles2, truncateAndInsertWines, truncateAndInsertReviews, searchWines, searchBottles, getCellarStats } from './db.js';
-import { fetchBottles, fetchBottles2, fetchWines, fetchReviews } from './fetcher.js';
+
+import { getCellarStats, initSchema, searchBottles, searchWines, truncateAndInsertBottles, truncateAndInsertReviews, truncateAndInsertWines } from './db.js';
+import { fetchBottles, fetchReviews, fetchWines } from './fetcher.js';
 
 function formatResults(results: unknown[], label: string): { content: { type: 'text'; text: string }[] } {
     if (results.length === 0) {
@@ -68,82 +69,84 @@ export class CellarTrackerMCP extends McpAgent {
 
         this.server.registerTool('search_wines', {
             title: 'Search Wines',
-            description: 'Search your wine inventory with optional filters. Returns up to 100 matching wines.',
+            description: 'Search wines in your cellar/collection with optional filters. Returns up to 100 matching wines. Use get_cellar_stats to get example values for varietal, producer, region, and other attributes. Use search_bottles tool to see individual bottles of a wine with the bottles\' location, purchase, and consumption data.',
             inputSchema: {
                 vintage_min: z.number().optional().describe('Minimum vintage year'),
                 vintage_max: z.number().optional().describe('Maximum vintage year'),
+                type: z.string().optional().describe('Filter by wine type, e.g. Red, White, Sparkling (partial match)'),
+                varietal: z.string().optional().describe('Filter by varietal/grape (partial match)'),
+                producer: z.string().optional().describe('Filter by producer name (partial match)'),
                 country: z.string().optional().describe('Filter by country (partial match)'),
                 region: z.string().optional().describe('Filter by region (partial match)'),
                 sub_region: z.string().optional().describe('Filter by sub-region (partial match)'),
                 appellation: z.string().optional().describe('Filter by appellation (partial match)'),
-                producer: z.string().optional().describe('Filter by producer name (partial match)'),
-                type: z.string().optional().describe('Filter by wine type, e.g. Red, White, Sparkling (partial match)'),
-                varietal: z.string().optional().describe('Filter by varietal/grape (partial match)'),
-                min_score: z.number().optional().describe('Minimum score from any critic (JD, TWP, VM, WA)'),
-                in_drinking_window: z.boolean().optional().describe('Filter by whether the wine is currently in its drinking window'),
-                in_stock_only: z.boolean().optional().describe('Only show wines in stock')
+                designation: z.string().optional().describe('Filter by designation (partial match)'),
+                vineyard: z.string().optional().describe('Filter by vineyard (partial match)'),
+                min_score: z.number().optional().describe('Filter by minimum score from any critic (JD: Jeb Dunnuck, TWP: The Wine Palate, VM: Vinous, WA: Wine Advocate)'),
+                in_cellar_only: z.boolean().optional().describe('Only show wines in stock in your cellar today and not wines pending delivery'),
+                in_drinking_window: z.boolean().optional().describe('Only show wines currently in their drinking window now')
             }
         }, async (params) => {
             const db = this.env.CELLARTRACKER_DB;
             const result = await searchWines(db, params);
-            return formatResults(result.results, 'wines');
+
+            if (result.results.length === 0) {
+                return {
+                    content: [{ type: 'text' as const, text: 'No wines found matching your criteria.' }]
+                };
+            }
+            return {
+                content: [{ type: 'text' as const, text: JSON.stringify(result.results, null, 2) }]
+            };
         });
 
         this.server.registerTool('refresh_data', {
             title: 'Refresh Data',
-            description: 'Fetch the latest inventory data from CellarTracker and store it in the database. Run this after making changes in CellarTracker or when first setting up.'
+            description: 'Fetch the latest wine cellar inventory data from CellarTracker and store it in the database. Run this after making changes in CellarTracker or when first setting up.'
         }, async () => {
             const db = this.env.CELLARTRACKER_DB;
             const username = await this.env.CELLARTRACKER_USERNAME.get();
             const password = await this.env.CELLARTRACKER_PASSWORD.get();
 
             await initSchema(db);
-            const [bottleResult, bottle2Result, wineResult, reviewResult] = await Promise.all([
-                fetchBottles(username, password),
-                fetchBottles2(username, password),
+
+            const [wineResult, bottleResult, reviewResult] = await Promise.all([
                 fetchWines(username, password),
+                fetchBottles(username, password),
                 fetchReviews(username, password)
             ]);
+
             const insertErrors = [
-                await truncateAndInsertBottles(db, bottleResult.rows),
-                await truncateAndInsertBottles2(db, bottle2Result.rows),
                 await truncateAndInsertWines(db, wineResult.rows),
+                await truncateAndInsertBottles(db, bottleResult.rows),
                 await truncateAndInsertReviews(db, reviewResult.rows)
             ].filter((e): e is string => e !== null);
 
             const counts = await db.batch([
-                db.prepare('SELECT COUNT(*) AS count FROM bottles'),
-                db.prepare('SELECT COUNT(*) AS count FROM bottles2'),
                 db.prepare('SELECT COUNT(*) AS count FROM wines'),
+                db.prepare('SELECT COUNT(*) AS count FROM bottles'),
                 db.prepare('SELECT COUNT(*) AS count FROM reviews')
             ]);
-            const bottleDbCount = (counts[0]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
-            const bottle2DbCount = (counts[1]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
-            const wineDbCount = (counts[2]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
-            const reviewDbCount = (counts[3]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
 
-            const wd = wineResult.diagnostics;
-            const bd = bottleResult.diagnostics;
-            const b2d = bottle2Result.diagnostics;
-            const rd = reviewResult.diagnostics;
+            const wineDbCount = (counts[0]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
+            const bottleDbCount = (counts[1]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
+            const reviewDbCount = (counts[2]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
+
             const lines = [
-                `Refreshed inventory data at ${new Date().toISOString()}.`,
-                `Wines: ${wd.responseBytes} bytes fetched, ${wd.parsedRows} rows parsed, ${wineDbCount} stored in DB.`,
-                `Bottles: ${bd.responseBytes} bytes fetched, ${bd.parsedRows} rows parsed, ${bottleDbCount} stored in DB.`,
-                `Bottles2: ${b2d.responseBytes} bytes fetched, ${b2d.parsedRows} rows parsed, ${bottle2DbCount} stored in DB.`,
-                `Reviews: ${rd.responseBytes} bytes fetched, ${rd.parsedRows} rows parsed, ${reviewDbCount} stored in DB.`
+                `Refreshed cellar inventory data at ${new Date().toISOString()}.`,
+                `Wines: ${wineResult.diagnostics.responseBytes} bytes fetched, ${wineResult.diagnostics.parsedRows} rows parsed, ${wineDbCount} stored in DB.`,
+                `Bottles: ${bottleResult.diagnostics.responseBytes} bytes fetched, ${bottleResult.diagnostics.parsedRows} rows parsed, ${bottleDbCount} stored in DB.`,
+                `Reviews: ${reviewResult.diagnostics.responseBytes} bytes fetched, ${reviewResult.diagnostics.parsedRows} rows parsed, ${reviewDbCount} stored in DB.`
             ];
-            if (wd.parseErrors > 0) {
-                lines.push(`Wine parse errors: ${wd.parseErrors}. First: ${wd.firstError ?? 'unknown'}`);
+
+            if (wineResult.diagnostics.parseErrors > 0) {
+                lines.push(`Wine parse errors: ${wineResult.diagnostics.parseErrors}. First: ${wineResult.diagnostics.firstError ?? 'unknown'}`);
             }
-            if (bd.parseErrors > 0) {
-                lines.push(`Bottle parse errors: ${bd.parseErrors}. First: ${bd.firstError ?? 'unknown'}`);
+            if (bottleResult.diagnostics.parseErrors > 0) {
+                lines.push(`Bottle parse errors: ${bottleResult.diagnostics.parseErrors}. First: ${bottleResult.diagnostics.firstError ?? 'unknown'}`);
             }
-            if (b2d.parseErrors > 0) {
-                lines.push(`Bottle2 parse errors: ${b2d.parseErrors}. First: ${b2d.firstError ?? 'unknown'}`);
-            }
-            if (rd.parseErrors > 0) {
-                lines.push(`Review parse errors: ${rd.parseErrors}. First: ${rd.firstError ?? 'unknown'}`);
+            if (reviewResult.diagnostics.parseErrors > 0) {
+                lines.push(`Review parse errors: ${reviewResult.diagnostics.parseErrors}. First: ${reviewResult.diagnostics.firstError ?? 'unknown'}`);
             }
             for (const err of insertErrors) {
                 lines.push(`DB insert error: ${err}`);

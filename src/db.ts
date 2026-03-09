@@ -1,27 +1,3 @@
-export async function initSchema(db: D1Database) {
-    await db.batch([
-        db.prepare(
-            'CREATE TABLE IF NOT EXISTS bottles (Barcode INTEGER PRIMARY KEY, iWine INTEGER, Location TEXT, Bin TEXT, StoreName TEXT, PurchaseDate TEXT, Size TEXT, Vintage INTEGER, Wine TEXT, Country TEXT, Region TEXT, SubRegion TEXT, Appellation TEXT, Producer TEXT, Type TEXT, Color TEXT, Category TEXT, Varietal TEXT, Designation TEXT, Vineyard TEXT, WA INTEGER, VM INTEGER, JD INTEGER, CT INTEGER, MY INTEGER, BeginConsume INTEGER, EndConsume INTEGER)'
-        ),
-        db.prepare(
-            'CREATE TABLE IF NOT EXISTS wines (iWine INTEGER PRIMARY KEY, Quantity INTEGER, Pending INTEGER, Size TEXT, Vintage INTEGER, Wine TEXT, Country TEXT, Region TEXT, SubRegion TEXT, Appellation TEXT, Producer TEXT, Type TEXT, Color TEXT, Category TEXT, Varietal TEXT, Designation TEXT, Vineyard TEXT, WA INTEGER, VM INTEGER, JD INTEGER, CT INTEGER, MY INTEGER, BeginConsume INTEGER, EndConsume INTEGER)'
-        ),
-        db.prepare(
-            'CREATE TABLE IF NOT EXISTS reviews (iReview INTEGER PRIMARY KEY, iWine INTEGER, Publication TEXT, ReviewDate TEXT, Reviewer TEXT, Score INTEGER, ReviewText TEXT, ReviewURL TEXT, BeginConsume INTEGER, EndConsume INTEGER)'
-        ),
-        db.prepare(
-            'CREATE TABLE IF NOT EXISTS bottles2 (Barcode INTEGER PRIMARY KEY, iWine INTEGER, BottleState INTEGER, Location TEXT, Bin TEXT, Store TEXT, BottleCost REAL, BottleCostCurrency TEXT, PurchaseDate TEXT, DeliveryDate TEXT, ConsumptionDate TEXT, BottleSize TEXT, Vintage INTEGER, Wine TEXT, Country TEXT, Region TEXT, SubRegion TEXT, Appellation TEXT, Producer TEXT, Type TEXT, Varietal TEXT, Designation TEXT, Vineyard TEXT, BeginConsume INTEGER, EndConsume INTEGER)'
-        )
-    ]);
-}
-
-const BOTTLE_COLUMNS = [
-    'Barcode', 'iWine', 'Location', 'Bin', 'StoreName', 'PurchaseDate',
-    'Size', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation',
-    'Producer', 'Type', 'Color', 'Category', 'Varietal', 'Designation', 'Vineyard',
-    'WA', 'VM', 'JD', 'CT', 'MY', 'BeginConsume', 'EndConsume'
-];
-
 const WINE_COLUMNS = [
     'iWine', 'Quantity', 'Pending',
     'Size', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation',
@@ -29,22 +5,35 @@ const WINE_COLUMNS = [
     'WA', 'VM', 'JD', 'CT', 'MY', 'BeginConsume', 'EndConsume'
 ];
 
-const REVIEW_COLUMNS = [
-    'iReview', 'iWine', 'Publication', 'ReviewDate', 'Reviewer',
-    'Score', 'ReviewText', 'ReviewURL', 'BeginConsume', 'EndConsume'
-];
-
-const BOTTLE2_COLUMNS = [
+const BOTTLE_COLUMNS = [
     'Barcode', 'iWine', 'BottleState', 'Location', 'Bin', 'Store', 'BottleCost', 'BottleCostCurrency', 'PurchaseDate', 'DeliveryDate', 'ConsumptionDate',
     'BottleSize', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation',
     'Producer', 'Type', 'Varietal', 'Designation', 'Vineyard',
     'BeginConsume', 'EndConsume'
 ];
 
+const REVIEW_COLUMNS = [
+    'iReview', 'iWine', 'Publication', 'ReviewDate', 'Reviewer',
+    'Score', 'ReviewText', 'ReviewURL', 'BeginConsume', 'EndConsume'
+];
+
+export async function initSchema(db: D1Database) {
+    await db.batch([
+        db.prepare(
+            'CREATE TABLE IF NOT EXISTS wines (iWine INTEGER PRIMARY KEY, Quantity INTEGER, Pending INTEGER, Size TEXT, Vintage INTEGER, Wine TEXT, Country TEXT, Region TEXT, SubRegion TEXT, Appellation TEXT, Producer TEXT, Type TEXT, Color TEXT, Category TEXT, Varietal TEXT, Designation TEXT, Vineyard TEXT, WA INTEGER, VM INTEGER, JD INTEGER, CT INTEGER, MY INTEGER, BeginConsume INTEGER, EndConsume INTEGER)'
+        ),
+        db.prepare(
+            'CREATE TABLE IF NOT EXISTS bottles (Barcode INTEGER PRIMARY KEY, iWine INTEGER, BottleState INTEGER, Location TEXT, Bin TEXT, Store TEXT, BottleCost REAL, BottleCostCurrency TEXT, PurchaseDate TEXT, DeliveryDate TEXT, ConsumptionDate TEXT, BottleSize TEXT, Vintage INTEGER, Wine TEXT, Country TEXT, Region TEXT, SubRegion TEXT, Appellation TEXT, Producer TEXT, Type TEXT, Varietal TEXT, Designation TEXT, Vineyard TEXT, BeginConsume INTEGER, EndConsume INTEGER)'
+        ),
+        db.prepare(
+            'CREATE TABLE IF NOT EXISTS reviews (iReview INTEGER PRIMARY KEY, iWine INTEGER, Publication TEXT, ReviewDate TEXT, Reviewer TEXT, Score INTEGER, ReviewText TEXT, ReviewURL TEXT, BeginConsume INTEGER, EndConsume INTEGER)'
+        )
+    ]);
+}
+
 async function truncateAndInsert(db: D1Database, table: string, columns: string[], rows: Record<string, unknown>[]): Promise<string | null> {
     try {
-        const placeholders = columns.map(() => '?').join(', ');
-        const insertSQL = `INSERT OR REPLACE INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
+        const insertSQL = `INSERT OR REPLACE INTO ${table} (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`;
 
         await db.prepare(`DELETE FROM ${table}`).run();
 
@@ -70,20 +59,16 @@ async function truncateAndInsert(db: D1Database, table: string, columns: string[
     }
 }
 
-export async function truncateAndInsertBottles(db: D1Database, rows: Record<string, unknown>[]) {
-    return truncateAndInsert(db, 'bottles', BOTTLE_COLUMNS, rows);
-}
-
 export async function truncateAndInsertWines(db: D1Database, rows: Record<string, unknown>[]) {
     return truncateAndInsert(db, 'wines', WINE_COLUMNS, rows);
 }
 
-export async function truncateAndInsertReviews(db: D1Database, rows: Record<string, unknown>[]) {
-    return truncateAndInsert(db, 'reviews', REVIEW_COLUMNS, rows);
+export async function truncateAndInsertBottles(db: D1Database, rows: Record<string, unknown>[]) {
+    return truncateAndInsert(db, 'bottles', BOTTLE_COLUMNS, rows);
 }
 
-export async function truncateAndInsertBottles2(db: D1Database, rows: Record<string, unknown>[]) {
-    return truncateAndInsert(db, 'bottles2', BOTTLE2_COLUMNS, rows);
+export async function truncateAndInsertReviews(db: D1Database, rows: Record<string, unknown>[]) {
+    return truncateAndInsert(db, 'reviews', REVIEW_COLUMNS, rows);
 }
 
 export async function getCellarStats(db: D1Database) {
@@ -320,16 +305,18 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
 export interface WineSearchFilters {
     vintage_min?: number | undefined;
     vintage_max?: number | undefined;
+    type?: string | undefined;
+    varietal?: string | undefined;
+    producer?: string | undefined;
     country?: string | undefined;
     region?: string | undefined;
     sub_region?: string | undefined;
     appellation?: string | undefined;
-    producer?: string | undefined;
-    type?: string | undefined;
-    varietal?: string | undefined;
+    designation?: string | undefined;
+    vineyard?: string | undefined;
     min_score?: number | undefined;
+    in_cellar_only?: boolean | undefined;
     in_drinking_window?: boolean | undefined;
-    in_stock_only?: boolean | undefined;
 }
 
 export async function searchWines(db: D1Database, filters: WineSearchFilters) {
@@ -343,6 +330,18 @@ export async function searchWines(db: D1Database, filters: WineSearchFilters) {
     if (filters.vintage_max !== undefined) {
         conditions.push('w.Vintage <= ?');
         params.push(filters.vintage_max);
+    }
+    if (filters.type) {
+        conditions.push('w.Type LIKE ?');
+        params.push(`%${filters.type}%`);
+    }
+    if (filters.varietal) {
+        conditions.push('w.Varietal LIKE ?');
+        params.push(`%${filters.varietal}%`);
+    }
+    if (filters.producer) {
+        conditions.push('w.Producer LIKE ?');
+        params.push(`%${filters.producer}%`);
     }
     if (filters.country) {
         conditions.push('w.Country LIKE ?');
@@ -360,27 +359,23 @@ export async function searchWines(db: D1Database, filters: WineSearchFilters) {
         conditions.push('w.Appellation LIKE ?');
         params.push(`%${filters.appellation}%`);
     }
-    if (filters.producer) {
-        conditions.push('w.Producer LIKE ?');
-        params.push(`%${filters.producer}%`);
+    if (filters.designation) {
+        conditions.push('w.Designation LIKE ?');
+        params.push(`%${filters.designation}%`);
     }
-    if (filters.type) {
-        conditions.push('w.Type LIKE ?');
-        params.push(`%${filters.type}%`);
-    }
-    if (filters.varietal) {
-        conditions.push('w.Varietal LIKE ?');
-        params.push(`%${filters.varietal}%`);
+    if (filters.vineyard) {
+        conditions.push('w.Vineyard LIKE ?');
+        params.push(`%${filters.vineyard}%`);
     }
     if (filters.min_score !== undefined) {
         conditions.push('(w.JD >= ? OR twp.Score >= ? OR w.VM >= ? OR wa.Score >= ?)');
         params.push(filters.min_score, filters.min_score, filters.min_score, filters.min_score);
     }
+    if (filters.in_cellar_only === true) {
+        conditions.push('w.Quantity > 0');
+    }
     if (filters.in_drinking_window === true) {
         conditions.push('w.BeginConsume IS NOT NULL AND w.EndConsume IS NOT NULL AND w.BeginConsume <= CAST(strftime(\'%Y\', \'now\') AS INTEGER) AND w.EndConsume >= CAST(strftime(\'%Y\', \'now\') AS INTEGER)');
-    }
-    if (filters.in_stock_only === true) {
-        conditions.push('w.Quantity > 0');
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';

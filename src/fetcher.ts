@@ -1,7 +1,7 @@
 import Papa from 'papaparse';
 
 const COLUMN_RENAMES: Record<string, string> = { RR: 'JD', AG: 'VM' };
-const DATE_COLUMNS = new Set(['ReviewDate', 'PurchaseDate']);
+const DATE_COLUMNS = new Set(['ReviewDate', 'PurchaseDate', 'DeliveryDate', 'ConsumptionDate']);
 const SCORE_COLUMNS = new Set(['WA', 'AG', 'RR', 'CT', 'MY', 'Score']);
 
 const NAMED_HTML_ENTITIES: Record<string, string> = {
@@ -40,6 +40,13 @@ const COLUMNS_BOTTLES = new Set([
     'Size', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation',
     'Producer', 'Type', 'Color', 'Category', 'Varietal', 'Designation', 'Vineyard',
     'WA', 'AG', 'RR', 'CT', 'MY', 'BeginConsume', 'EndConsume'
+]);
+
+const COLUMNS_BOTTLES2 = new Set([
+    'Barcode', 'iWine', 'BottleState', 'Location', 'Bin', 'Store', 'BottleCost', 'BottleCostCurrency', 'PurchaseDate', 'DeliveryDate', 'ConsumptionDate',
+    'BottleSize', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation',
+    'Producer', 'Type', 'Varietal', 'Designation', 'Vineyard',
+    'BeginConsume', 'EndConsume'
 ]);
 
 const COLUMNS_WINES = new Set([
@@ -111,6 +118,11 @@ export interface FetchResult {
 export async function fetchBottles(username: string, password: string): Promise<FetchResult> {
     const table = await fetchCellarTrackerTable(username, password, 'Inventory');
     return parseCellarTrackerTable(table, COLUMNS_BOTTLES);
+}
+
+export async function fetchBottles2(username: string, password: string): Promise<FetchResult> {
+    const table = await fetchCellarTrackerTable(username, password, 'Bottles');
+    return parseCellarTrackerTable(table, COLUMNS_BOTTLES2);
 }
 
 export async function fetchWines(username: string, password: string): Promise<FetchResult> {

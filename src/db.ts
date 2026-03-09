@@ -8,6 +8,9 @@ export async function initSchema(db: D1Database) {
         ),
         db.prepare(
             'CREATE TABLE IF NOT EXISTS reviews (iReview INTEGER PRIMARY KEY, iWine INTEGER, Publication TEXT, ReviewDate TEXT, Reviewer TEXT, Score INTEGER, ReviewText TEXT, ReviewURL TEXT, BeginConsume INTEGER, EndConsume INTEGER)'
+        ),
+        db.prepare(
+            'CREATE TABLE IF NOT EXISTS bottles2 (Barcode INTEGER PRIMARY KEY, iWine INTEGER, BottleState INTEGER, Location TEXT, Bin TEXT, Store TEXT, BottleCost REAL, BottleCostCurrency TEXT, PurchaseDate TEXT, DeliveryDate TEXT, ConsumptionDate TEXT, BottleSize TEXT, Vintage INTEGER, Wine TEXT, Country TEXT, Region TEXT, SubRegion TEXT, Appellation TEXT, Producer TEXT, Type TEXT, Varietal TEXT, Designation TEXT, Vineyard TEXT, BeginConsume INTEGER, EndConsume INTEGER)'
         )
     ]);
 }
@@ -29,6 +32,13 @@ const WINE_COLUMNS = [
 const REVIEW_COLUMNS = [
     'iReview', 'iWine', 'Publication', 'ReviewDate', 'Reviewer',
     'Score', 'ReviewText', 'ReviewURL', 'BeginConsume', 'EndConsume'
+];
+
+const BOTTLE2_COLUMNS = [
+    'Barcode', 'iWine', 'BottleState', 'Location', 'Bin', 'Store', 'BottleCost', 'BottleCostCurrency', 'PurchaseDate', 'DeliveryDate', 'ConsumptionDate',
+    'BottleSize', 'Vintage', 'Wine', 'Country', 'Region', 'SubRegion', 'Appellation',
+    'Producer', 'Type', 'Varietal', 'Designation', 'Vineyard',
+    'BeginConsume', 'EndConsume'
 ];
 
 async function truncateAndInsert(db: D1Database, table: string, columns: string[], rows: Record<string, unknown>[]) {
@@ -62,6 +72,10 @@ export async function truncateAndInsertWines(db: D1Database, rows: Record<string
 
 export async function truncateAndInsertReviews(db: D1Database, rows: Record<string, unknown>[]) {
     await truncateAndInsert(db, 'reviews', REVIEW_COLUMNS, rows);
+}
+
+export async function truncateAndInsertBottles2(db: D1Database, rows: Record<string, unknown>[]) {
+    await truncateAndInsert(db, 'bottles2', BOTTLE2_COLUMNS, rows);
 }
 
 export async function getCellarStats(db: D1Database) {

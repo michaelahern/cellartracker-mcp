@@ -1,8 +1,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { McpAgent } from 'agents/mcp';
 import { z } from 'zod';
-import { initSchema, truncateAndInsertBottles, truncateAndInsertWines, truncateAndInsertReviews, searchWines, searchBottles, getCellarStats } from './db.js';
-import { fetchBottles, fetchWines, fetchReviews } from './fetcher.js';
+import { initSchema, truncateAndInsertBottles, truncateAndInsertBottles2, truncateAndInsertWines, truncateAndInsertReviews, searchWines, searchBottles, getCellarStats } from './db.js';
+import { fetchBottles, fetchBottles2, fetchWines, fetchReviews } from './fetcher.js';
 
 function formatResults(results: unknown[], label: string): { content: { type: 'text'; text: string }[] } {
     if (results.length === 0) {
@@ -97,31 +97,37 @@ export class CellarTrackerMCP extends McpAgent {
             const password = await this.env.CELLARTRACKER_PASSWORD.get();
 
             await initSchema(db);
-            const [bottleResult, wineResult, reviewResult] = await Promise.all([
+            const [bottleResult, bottle2Result, wineResult, reviewResult] = await Promise.all([
                 fetchBottles(username, password),
+                fetchBottles2(username, password),
                 fetchWines(username, password),
                 fetchReviews(username, password)
             ]);
             await truncateAndInsertBottles(db, bottleResult.rows);
+            await truncateAndInsertBottles2(db, bottle2Result.rows);
             await truncateAndInsertWines(db, wineResult.rows);
             await truncateAndInsertReviews(db, reviewResult.rows);
 
             const counts = await db.batch([
                 db.prepare('SELECT COUNT(*) AS count FROM bottles'),
+                db.prepare('SELECT COUNT(*) AS count FROM bottles2'),
                 db.prepare('SELECT COUNT(*) AS count FROM wines'),
                 db.prepare('SELECT COUNT(*) AS count FROM reviews')
             ]);
             const bottleDbCount = (counts[0]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
-            const wineDbCount = (counts[1]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
-            const reviewDbCount = (counts[2]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
+            const bottle2DbCount = (counts[1]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
+            const wineDbCount = (counts[2]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
+            const reviewDbCount = (counts[3]?.results[0] as Record<string, unknown> | undefined)?.['count'] ?? '?';
 
             const wd = wineResult.diagnostics;
             const bd = bottleResult.diagnostics;
+            const b2d = bottle2Result.diagnostics;
             const rd = reviewResult.diagnostics;
             const lines = [
                 `Refreshed inventory data at ${new Date().toISOString()}.`,
                 `Wines: ${wd.responseBytes} bytes fetched, ${wd.parsedRows} rows parsed, ${wineDbCount} stored in DB.`,
                 `Bottles: ${bd.responseBytes} bytes fetched, ${bd.parsedRows} rows parsed, ${bottleDbCount} stored in DB.`,
+                `Bottles2: ${b2d.responseBytes} bytes fetched, ${b2d.parsedRows} rows parsed, ${bottle2DbCount} stored in DB.`,
                 `Reviews: ${rd.responseBytes} bytes fetched, ${rd.parsedRows} rows parsed, ${reviewDbCount} stored in DB.`
             ];
             if (wd.parseErrors > 0) {
@@ -129,6 +135,9 @@ export class CellarTrackerMCP extends McpAgent {
             }
             if (bd.parseErrors > 0) {
                 lines.push(`Bottle parse errors: ${bd.parseErrors}. First: ${bd.firstError ?? 'unknown'}`);
+            }
+            if (b2d.parseErrors > 0) {
+                lines.push(`Bottle2 parse errors: ${b2d.parseErrors}. First: ${b2d.firstError ?? 'unknown'}`);
             }
             if (rd.parseErrors > 0) {
                 lines.push(`Review parse errors: ${rd.parseErrors}. First: ${rd.firstError ?? 'unknown'}`);

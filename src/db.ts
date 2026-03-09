@@ -248,8 +248,8 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
         params.push(filters.vintage_max);
     }
     if (filters.location) {
-        conditions.push('b.Location LIKE ?');
-        params.push(`%${filters.location}%`);
+        conditions.push('(b.Location LIKE ? OR (b.BottleState = -1 AND b.Location = \'(n/a)\' AND \'(pending)\' LIKE ?))');
+        params.push(`%${filters.location}%`, `%${filters.location}%`);
     }
     if (filters.country) {
         conditions.push('b.Country LIKE ?');
@@ -291,7 +291,8 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
     const sql = `
         SELECT b.Wine AS wine, b.Vintage AS vintage, b.BottleSize AS size,
             CASE b.BottleState WHEN 1 THEN 'in_cellar' WHEN 0 THEN 'consumed' WHEN -1 THEN 'pending_delivery' END AS bottle_state,
-            b.Location AS location, (SELECT GROUP_CONCAT(bin_summary, '; ') FROM (SELECT b2.Bin || ' (x' || COUNT(*) || ')' AS bin_summary FROM bottles2 b2 WHERE b2.iWine = b.iWine AND b2.Location = b.Location AND b2.BottleState = b.BottleState GROUP BY b2.Bin)) AS bins,
+            CASE WHEN b.BottleState = -1 AND b.Location = '(n/a)' THEN '(pending)' ELSE b.Location END AS location,
+            (SELECT GROUP_CONCAT(bin_summary, '; ') FROM (SELECT b2.Bin || ' (x' || COUNT(*) || ')' AS bin_summary FROM bottles2 b2 WHERE b2.iWine = b.iWine AND b2.Location = b.Location AND b2.BottleState = b.BottleState GROUP BY b2.Bin)) AS bins,
             COUNT(*) AS bottles_at_location, COALESCE(w.Quantity, 0) AS bottles_in_cellar, COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS bottles_total,
             b.Country AS country, b.Region AS region, b.SubRegion AS sub_region, b.Appellation AS appellation,
             b.Producer AS producer, b.Type AS type, b.Varietal AS varietal, b.Designation AS designation, b.Vineyard AS vineyard,

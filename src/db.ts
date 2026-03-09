@@ -110,7 +110,7 @@ export async function getCellarStats(db: D1Database) {
             WHERE Type IS NOT NULL AND Type != '' AND Type != 'Unknown'
             GROUP BY Type
             ORDER BY bottles_total DESC
-            LIMIT 20
+            LIMIT 100
         `),
         db.prepare(`
             SELECT w.Varietal AS varietal, COALESCE(SUM(w.Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(w.Quantity), 0) + COALESCE(SUM(w.Pending), 0) AS bottles_total,
@@ -121,7 +121,7 @@ export async function getCellarStats(db: D1Database) {
             WHERE w.Varietal IS NOT NULL AND w.Varietal != '' AND w.Varietal != 'Unknown'
             GROUP BY w.Varietal
             ORDER BY bottles_total DESC
-            LIMIT 20
+            LIMIT 100
         `),
         db.prepare(`
             SELECT w.Producer AS producer, COALESCE(SUM(w.Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(w.Quantity), 0) + COALESCE(SUM(w.Pending), 0) AS bottles_total,
@@ -132,7 +132,7 @@ export async function getCellarStats(db: D1Database) {
             WHERE w.Producer IS NOT NULL AND w.Producer != '' AND w.Producer != 'Unknown'
             GROUP BY w.Producer
             ORDER BY bottles_total DESC
-            LIMIT 20
+            LIMIT 100
         `),
         db.prepare(`
             SELECT Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
@@ -140,7 +140,7 @@ export async function getCellarStats(db: D1Database) {
             WHERE Country IS NOT NULL AND Country != '' AND Country != 'Unknown'
             GROUP BY Country
             ORDER BY bottles_total DESC
-            LIMIT 10
+            LIMIT 50
         `),
         db.prepare(`
             SELECT Region AS region, Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
@@ -148,7 +148,7 @@ export async function getCellarStats(db: D1Database) {
             WHERE Region IS NOT NULL AND Region != '' AND Region != 'Unknown'
             GROUP BY Region
             ORDER BY bottles_total DESC
-            LIMIT 10
+            LIMIT 50
         `),
         db.prepare(`
             SELECT SubRegion AS sub_region, Region AS region, Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
@@ -156,7 +156,7 @@ export async function getCellarStats(db: D1Database) {
             WHERE SubRegion IS NOT NULL AND SubRegion != '' AND SubRegion != 'Unknown'
             GROUP BY SubRegion
             ORDER BY bottles_total DESC
-            LIMIT 10
+            LIMIT 50
         `),
         db.prepare(`
             SELECT Appellation AS appellation, SubRegion AS sub_region, Region AS region, Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_cellar, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_total
@@ -164,7 +164,7 @@ export async function getCellarStats(db: D1Database) {
             WHERE Appellation IS NOT NULL AND Appellation != '' AND Appellation != 'Unknown'
             GROUP BY Appellation
             ORDER BY bottles_total DESC
-            LIMIT 10
+            LIMIT 50
         `)
     ]);
 

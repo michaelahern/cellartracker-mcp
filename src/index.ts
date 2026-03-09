@@ -34,7 +34,7 @@ export class CellarTrackerMCP extends McpAgent {
     async init() {
         this.server.registerTool('get_cellar_stats', {
             title: 'Cellar Statistics',
-            description: 'Get aggregate statistics about your cellar: total bottles, total value, top varietals, top producers, and wines in drinking window.'
+            description: 'Get aggregate statistics about your cellar, including bottles, locations, drinking windows, types, varietals, producers, countries, regions, sub-regions, and appellations.'
         }, async () => {
             const db = this.env.CELLARTRACKER_DB;
             const stats = await getCellarStats(db);

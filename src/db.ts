@@ -27,7 +27,14 @@ export async function initSchema(db: D1Database) {
         ),
         db.prepare(
             'CREATE TABLE IF NOT EXISTS reviews (iReview INTEGER PRIMARY KEY, iWine INTEGER, Publication TEXT, ReviewDate TEXT, Reviewer TEXT, Score INTEGER, ReviewText TEXT, ReviewURL TEXT, BeginConsume INTEGER, EndConsume INTEGER)'
-        )
+        ),
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_bottles_wine ON bottles (iWine)'),
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_bottles_wine_state ON bottles (iWine, BottleState)'),
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_bottles_wine_state_location ON bottles (iWine, BottleState, Location, Bin)'),
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_bottles_state ON bottles (BottleState)'),
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_reviews_wine ON reviews (iWine)'),
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_reviews_wine_reviewdate ON reviews (iWine, ReviewDate DESC)'),
+        db.prepare('CREATE INDEX IF NOT EXISTS idx_reviews_publication_wine_reviewdate ON reviews (Publication, iWine, ReviewDate DESC)')
     ]);
 }
 
@@ -284,9 +291,19 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
     const sql = `
         SELECT b.Wine AS wine, b.Vintage AS vintage, b.BottleSize AS size,
             CASE b.BottleState WHEN 1 THEN 'in_cellar' WHEN 0 THEN 'consumed' WHEN -1 THEN 'pending_delivery' END AS bottle_state,
-            CASE WHEN b.BottleState = -1 THEN NULL ELSE b.Location END AS location,
-            (SELECT GROUP_CONCAT(bin_summary, '; ') FROM (SELECT bb.Bin || ' (x' || COUNT(*) || ')' AS bin_summary FROM bottles bb WHERE bb.iWine = b.iWine AND bb.Location = b.Location AND bb.BottleState = b.BottleState GROUP BY bb.Bin)) AS bins,
-            COUNT(*) AS bottles_at_location, COALESCE(w.Quantity, 0) AS bottles_in_cellar, COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS bottles_total,
+            CASE WHEN (b.BottleState <= 0 OR b.Location = 'none') THEN NULL ELSE b.Location END AS location,
+            (SELECT GROUP_CONCAT(bin_summary, '; ') FROM (SELECT bb.Bin || ' (x' || COUNT(*) || ')' AS bin_summary FROM bottles bb WHERE bb.iWine = b.iWine AND bb.BottleState = b.BottleState AND bb.Location = b.Location AND bb.BottleState = 1 GROUP BY bb.Bin)) AS bins,
+            CASE WHEN b.BottleState = 1 THEN COUNT(*) ELSE NULL END AS bottles_at_this_location,
+            CASE WHEN b.BottleState = 0 THEN COUNT(*) ELSE NULL END AS bottles_consumed, CASE WHEN b.BottleState = 0 THEN MAX(b.ConsumptionDate) ELSE NULL END AS last_consumption_date,
+            CASE WHEN b.BottleState = -1 THEN COUNT(*) ELSE NULL END AS bottles_pending_delivery, CASE WHEN b.BottleState = -1 THEN MIN(b.DeliveryDate) ELSE NULL END AS next_delivery_date, 
+            COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS total_bottles_remaining_in_cellar,
+            CASE
+                WHEN ROUND(AVG(b.BottleCost)) IS NULL THEN NULL
+                WHEN b.BottleCostCurrency = 'USD' THEN '$' || CAST(CAST(ROUND(AVG(b.BottleCost)) AS INTEGER) AS TEXT)
+                WHEN b.BottleCostCurrency = 'EUR' THEN '€' || CAST(CAST(ROUND(AVG(b.BottleCost)) AS INTEGER) AS TEXT)
+                WHEN b.BottleCostCurrency = 'GBP' THEN '£' || CAST(CAST(ROUND(AVG(b.BottleCost)) AS INTEGER) AS TEXT)
+                ELSE b.BottleCostCurrency || ' ' || CAST(CAST(ROUND(AVG(b.BottleCost)) AS INTEGER) AS TEXT)
+            END AS avg_bottle_cost,
             b.Country AS country, b.Region AS region, b.SubRegion AS sub_region, b.Appellation AS appellation,
             b.Producer AS producer, b.Type AS type, b.Varietal AS varietal, b.Designation AS designation, b.Vineyard AS vineyard,
             w.JD AS score_jd, twp.Score AS score_twp, twp.ReviewText AS review_twp, w.VM AS score_vm, wa.Score AS score_wa, wa.ReviewText AS review_wa,
@@ -302,8 +319,8 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
         LEFT JOIN (SELECT iWine, Score, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'The Wine Palate') twp ON w.iWine = twp.iWine AND twp.rn = 1
         LEFT JOIN (SELECT iWine, Score, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'Wine Advocate') wa ON w.iWine = wa.iWine AND wa.rn = 1
         ${where}
-        GROUP BY b.iWine, b.Location
-        ORDER BY b.Wine, b.Vintage, b.Location
+        GROUP BY b.iWine, b.BottleState, location
+        ORDER BY b.Wine, b.Vintage, b.BottleState, location
         LIMIT 200
         `;
 
@@ -323,7 +340,6 @@ export interface WineSearchFilters {
     designation?: string | undefined;
     vineyard?: string | undefined;
     min_score?: number | undefined;
-    in_cellar_only?: boolean | undefined;
     in_drinking_window?: boolean | undefined;
 }
 
@@ -379,9 +395,6 @@ export async function searchWines(db: D1Database, filters: WineSearchFilters) {
         conditions.push('(w.JD >= ? OR twp.Score >= ? OR w.VM >= ? OR wa.Score >= ?)');
         params.push(filters.min_score, filters.min_score, filters.min_score, filters.min_score);
     }
-    if (filters.in_cellar_only === true) {
-        conditions.push('w.Quantity > 0');
-    }
     if (filters.in_drinking_window === true) {
         conditions.push('w.BeginConsume IS NOT NULL AND w.EndConsume IS NOT NULL AND w.BeginConsume <= CAST(strftime(\'%Y\', \'now\') AS INTEGER) AND w.EndConsume >= CAST(strftime(\'%Y\', \'now\') AS INTEGER)');
     }
@@ -389,7 +402,8 @@ export async function searchWines(db: D1Database, filters: WineSearchFilters) {
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const sql = `
         SELECT w.Wine AS wine, w.Vintage AS vintage, w.Size AS size,
-            COALESCE(w.Quantity, 0) AS bottles_in_cellar, COALESCE(w.Pending, 0) AS bottles_pending_delivery, COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS bottles_total,
+            COALESCE(w.Quantity, 0) AS bottles_in_cellar, COALESCE(w.Pending, 0) AS bottles_pending_delivery, COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS bottles_remaining,
+            (SELECT COUNT(*) FROM bottles b WHERE b.iWine = w.iWine AND b.BottleState = 0) AS bottles_consumed,
             w.Country AS country, w.Region AS region, w.SubRegion AS sub_region, w.Appellation AS appellation,
             w.Producer AS producer, w.Type AS type, w.Varietal AS varietal, w.Designation AS designation, w.Vineyard AS vineyard,
             w.JD AS score_jd, twp.Score AS score_twp, twp.ReviewText AS review_twp, w.VM AS score_vm, wa.Score AS score_wa, wa.ReviewText AS review_wa,

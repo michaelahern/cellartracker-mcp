@@ -45,7 +45,6 @@ export class CellarTrackerMCP extends McpAgent {
                 designation: z.string().optional().describe('Filter by designation (partial match)'),
                 vineyard: z.string().optional().describe('Filter by vineyard (partial match)'),
                 min_score: z.number().optional().describe('Filter by minimum score from any critic (JD: Jeb Dunnuck, TWP: The Wine Palate, VM: Vinous, WA: Wine Advocate)'),
-                in_cellar_only: z.boolean().optional().describe('Only show wines in stock in your cellar today and not wines pending delivery'),
                 in_drinking_window: z.boolean().optional().describe('Only show wines currently in their drinking window now')
             }
         }, async (params) => {

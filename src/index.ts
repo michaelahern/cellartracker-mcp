@@ -46,6 +46,7 @@ export class CellarTrackerMCP extends McpAgent {
             title: 'Search Bottles',
             description: 'Search individual bottles in your cellar with optional filters. Returns up to 200 bottles with location/bin details.',
             inputSchema: {
+                bottle_state: z.enum(['in_cellar', 'consumed', 'pending_delivery']).optional().describe('Filter by bottle state (default: in_cellar)'),
                 vintage_min: z.number().optional().describe('Minimum vintage year'),
                 vintage_max: z.number().optional().describe('Maximum vintage year'),
                 location: z.string().optional().describe('Filter by storage location (partial match)'),

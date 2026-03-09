@@ -208,7 +208,14 @@ export async function getCellarStats(db: D1Database) {
     };
 }
 
+const BOTTLE_STATE_MAP: Record<string, number> = {
+    in_cellar: 1,
+    consumed: 0,
+    pending_delivery: -1
+};
+
 export interface BottleSearchFilters {
+    bottle_state?: string | undefined;
     vintage_min?: number | undefined;
     vintage_max?: number | undefined;
     location?: string | undefined;
@@ -227,6 +234,11 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
     const conditions: string[] = [];
     const params: unknown[] = [];
 
+    const stateValue = filters.bottle_state ? BOTTLE_STATE_MAP[filters.bottle_state] : 1;
+    if (stateValue !== undefined) {
+        conditions.push('b.BottleState = ?');
+        params.push(stateValue);
+    }
     if (filters.vintage_min !== undefined) {
         conditions.push('b.Vintage >= ?');
         params.push(filters.vintage_min);
@@ -268,7 +280,7 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
         params.push(`%${filters.varietal}%`);
     }
     if (filters.min_score !== undefined) {
-        conditions.push('(w.JD >= ? OR twp.Score >= ? OR w.VM >= ? OR w.WA >= ?)');
+        conditions.push('(w.JD >= ? OR twp.Score >= ? OR w.VM >= ? OR wa.Score >= ?)');
         params.push(filters.min_score, filters.min_score, filters.min_score, filters.min_score);
     }
     if (filters.in_drinking_window === true) {
@@ -277,12 +289,13 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const sql = `
-        SELECT b.Wine AS wine, b.Vintage AS vintage, b.Size AS size,
-            b.Location AS location, (SELECT GROUP_CONCAT(bin_summary, '; ') FROM (SELECT b2.Bin || ' (x' || COUNT(*) || ')' AS bin_summary FROM bottles b2 WHERE b2.iWine = b.iWine AND b2.Location = b.Location GROUP BY b2.Bin)) AS bins,
+        SELECT b.Wine AS wine, b.Vintage AS vintage, b.BottleSize AS size,
+            CASE b.BottleState WHEN 1 THEN 'in_cellar' WHEN 0 THEN 'consumed' WHEN -1 THEN 'pending_delivery' END AS bottle_state,
+            b.Location AS location, (SELECT GROUP_CONCAT(bin_summary, '; ') FROM (SELECT b2.Bin || ' (x' || COUNT(*) || ')' AS bin_summary FROM bottles2 b2 WHERE b2.iWine = b.iWine AND b2.Location = b.Location AND b2.BottleState = b.BottleState GROUP BY b2.Bin)) AS bins,
             COUNT(*) AS bottles_at_location, COALESCE(w.Quantity, 0) AS bottles_in_cellar, COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS bottles_total,
             b.Country AS country, b.Region AS region, b.SubRegion AS sub_region, b.Appellation AS appellation,
             b.Producer AS producer, b.Type AS type, b.Varietal AS varietal, b.Designation AS designation, b.Vineyard AS vineyard,
-            w.JD AS score_jd, twp.Score AS score_twp, twp.ReviewText AS review_twp, w.VM AS score_vm, w.WA AS score_wa, wa.ReviewText AS review_wa,
+            w.JD AS score_jd, twp.Score AS score_twp, twp.ReviewText AS review_twp, w.VM AS score_vm, wa.Score AS score_wa, wa.ReviewText AS review_wa,
             b.BeginConsume AS begin_consume_year, b.EndConsume AS end_consume_year,
             CASE
                 WHEN b.BeginConsume IS NULL OR b.EndConsume IS NULL THEN NULL
@@ -290,10 +303,10 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
                 WHEN b.BeginConsume <= CAST(strftime('%Y', 'now') AS INTEGER) AND b.EndConsume >= CAST(strftime('%Y', 'now') AS INTEGER) THEN 'now'
                 WHEN b.BeginConsume > CAST(strftime('%Y', 'now') AS INTEGER) THEN 'future'
             END AS drinking_window_status
-        FROM bottles b
+        FROM bottles2 b
         LEFT JOIN wines w ON b.iWine = w.iWine
         LEFT JOIN (SELECT iWine, Score, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'The Wine Palate') twp ON w.iWine = twp.iWine AND twp.rn = 1
-        LEFT JOIN (SELECT iWine, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'Wine Advocate') wa ON w.iWine = wa.iWine AND wa.rn = 1
+        LEFT JOIN (SELECT iWine, Score, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'Wine Advocate') wa ON w.iWine = wa.iWine AND wa.rn = 1
         ${where}
         GROUP BY b.iWine, b.Location
         ORDER BY b.Wine, b.Vintage, b.Location
@@ -359,7 +372,7 @@ export async function searchWines(db: D1Database, filters: WineSearchFilters) {
         params.push(`%${filters.varietal}%`);
     }
     if (filters.min_score !== undefined) {
-        conditions.push('(w.JD >= ? OR twp.Score >= ? OR w.VM >= ? OR w.WA >= ?)');
+        conditions.push('(w.JD >= ? OR twp.Score >= ? OR w.VM >= ? OR wa.Score >= ?)');
         params.push(filters.min_score, filters.min_score, filters.min_score, filters.min_score);
     }
     if (filters.in_drinking_window === true) {
@@ -375,7 +388,7 @@ export async function searchWines(db: D1Database, filters: WineSearchFilters) {
             COALESCE(w.Quantity, 0) AS bottles_in_cellar, COALESCE(w.Pending, 0) AS bottles_pending_delivery, COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS bottles_total,
             w.Country AS country, w.Region AS region, w.SubRegion AS sub_region, w.Appellation AS appellation,
             w.Producer AS producer, w.Type AS type, w.Varietal AS varietal, w.Designation AS designation, w.Vineyard AS vineyard,
-            w.JD AS score_jd, twp.Score AS score_twp, twp.ReviewText AS review_twp, w.VM AS score_vm, w.WA AS score_wa, wa.ReviewText AS review_wa,
+            w.JD AS score_jd, twp.Score AS score_twp, twp.ReviewText AS review_twp, w.VM AS score_vm, wa.Score AS score_wa, wa.ReviewText AS review_wa,
             w.BeginConsume AS begin_consume_year, w.EndConsume AS end_consume_year,
             CASE
                 WHEN w.BeginConsume IS NULL OR w.EndConsume IS NULL THEN NULL
@@ -385,7 +398,7 @@ export async function searchWines(db: D1Database, filters: WineSearchFilters) {
             END AS drinking_window_status
         FROM wines w
         LEFT JOIN (SELECT iWine, Score, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'The Wine Palate') twp ON w.iWine = twp.iWine AND twp.rn = 1
-        LEFT JOIN (SELECT iWine, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'Wine Advocate') wa ON w.iWine = wa.iWine AND wa.rn = 1
+        LEFT JOIN (SELECT iWine, Score, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'Wine Advocate') wa ON w.iWine = wa.iWine AND wa.rn = 1
         ${where}
         ORDER BY w.Wine, w.Vintage
         LIMIT 100`;

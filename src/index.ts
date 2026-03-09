@@ -103,10 +103,12 @@ export class CellarTrackerMCP extends McpAgent {
                 fetchWines(username, password),
                 fetchReviews(username, password)
             ]);
-            await truncateAndInsertBottles(db, bottleResult.rows);
-            await truncateAndInsertBottles2(db, bottle2Result.rows);
-            await truncateAndInsertWines(db, wineResult.rows);
-            await truncateAndInsertReviews(db, reviewResult.rows);
+            const insertErrors = [
+                await truncateAndInsertBottles(db, bottleResult.rows),
+                await truncateAndInsertBottles2(db, bottle2Result.rows),
+                await truncateAndInsertWines(db, wineResult.rows),
+                await truncateAndInsertReviews(db, reviewResult.rows)
+            ].filter((e): e is string => e !== null);
 
             const counts = await db.batch([
                 db.prepare('SELECT COUNT(*) AS count FROM bottles'),
@@ -141,6 +143,9 @@ export class CellarTrackerMCP extends McpAgent {
             }
             if (rd.parseErrors > 0) {
                 lines.push(`Review parse errors: ${rd.parseErrors}. First: ${rd.firstError ?? 'unknown'}`);
+            }
+            for (const err of insertErrors) {
+                lines.push(`DB insert error: ${err}`);
             }
 
             return {

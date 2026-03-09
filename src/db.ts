@@ -41,41 +41,49 @@ const BOTTLE2_COLUMNS = [
     'BeginConsume', 'EndConsume'
 ];
 
-async function truncateAndInsert(db: D1Database, table: string, columns: string[], rows: Record<string, unknown>[]) {
-    const placeholders = columns.map(() => '?').join(', ');
-    const insertSQL = `INSERT OR REPLACE INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
+async function truncateAndInsert(db: D1Database, table: string, columns: string[], rows: Record<string, unknown>[]): Promise<string | null> {
+    try {
+        const placeholders = columns.map(() => '?').join(', ');
+        const insertSQL = `INSERT OR REPLACE INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
 
-    await db.prepare(`DELETE FROM ${table}`).run();
+        await db.prepare(`DELETE FROM ${table}`).run();
 
-    const statements: D1PreparedStatement[] = [];
-    for (const row of rows) {
-        const values = columns.map((col) => {
-            const val = row[col];
-            return val === '' || val === undefined ? null : val;
-        });
-        statements.push(db.prepare(insertSQL).bind(...values));
+        const statements: D1PreparedStatement[] = [];
+        for (const row of rows) {
+            const values = columns.map((col) => {
+                const val = row[col];
+                return val === '' || val === undefined ? null : val;
+            });
+            statements.push(db.prepare(insertSQL).bind(...values));
+        }
+
+        const BATCH_SIZE = 20;
+        for (let i = 0; i < statements.length; i += BATCH_SIZE) {
+            await db.batch(statements.slice(i, i + BATCH_SIZE));
+        }
+        return null;
     }
-
-    const BATCH_SIZE = 20;
-    for (let i = 0; i < statements.length; i += BATCH_SIZE) {
-        await db.batch(statements.slice(i, i + BATCH_SIZE));
+    catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`Error inserting into ${table}: ${message}`);
+        return `${table}: ${message}`;
     }
 }
 
 export async function truncateAndInsertBottles(db: D1Database, rows: Record<string, unknown>[]) {
-    await truncateAndInsert(db, 'bottles', BOTTLE_COLUMNS, rows);
+    return truncateAndInsert(db, 'bottles', BOTTLE_COLUMNS, rows);
 }
 
 export async function truncateAndInsertWines(db: D1Database, rows: Record<string, unknown>[]) {
-    await truncateAndInsert(db, 'wines', WINE_COLUMNS, rows);
+    return truncateAndInsert(db, 'wines', WINE_COLUMNS, rows);
 }
 
 export async function truncateAndInsertReviews(db: D1Database, rows: Record<string, unknown>[]) {
-    await truncateAndInsert(db, 'reviews', REVIEW_COLUMNS, rows);
+    return truncateAndInsert(db, 'reviews', REVIEW_COLUMNS, rows);
 }
 
 export async function truncateAndInsertBottles2(db: D1Database, rows: Record<string, unknown>[]) {
-    await truncateAndInsert(db, 'bottles2', BOTTLE2_COLUMNS, rows);
+    return truncateAndInsert(db, 'bottles2', BOTTLE2_COLUMNS, rows);
 }
 
 export async function getCellarStats(db: D1Database) {

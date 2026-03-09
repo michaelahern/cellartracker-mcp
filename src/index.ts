@@ -79,9 +79,8 @@ export class CellarTrackerMCP extends McpAgent {
                 vineyard: z.string().optional().describe('Filter by vineyard (partial match)'),
                 min_score: z.number().optional().describe('Filter by minimum score from any critic (JD: Jeb Dunnuck, TWP: The Wine Palate, VM: Vinous, WA: Wine Advocate)'),
                 in_drinking_window: z.boolean().optional().describe('Only show wines currently in their drinking window now'),
-                in_cellar_only: z.boolean().optional().describe('Only show wines in stock in your cellar today and not wines pending delivery'),
-                location: z.string().optional().describe('Filter by storage location (partial match), will only match bottles currently in cellar, use bottle_state_pending_delivery filter to include bottles pending delivery, as these have a null location'),
-                bottle_state_in_cellar: z.boolean().optional().describe('Include bottles currently in cellar (default: true)'),
+                location: z.string().optional().describe('Filter by storage location (partial match), will only match bottles currently in stock, use bottle_state_pending_delivery filter to include bottles pending delivery, as these have a null location'),
+                bottle_state_in_stock: z.boolean().optional().describe('Include bottles currently in stock or on hand (default: true)'),
                 bottle_state_consumed: z.boolean().optional().describe('Include consumed bottles (default: false)'),
                 bottle_state_pending_delivery: z.boolean().optional().describe('Include bottles pending delivery (default: false)')
             }

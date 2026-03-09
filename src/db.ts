@@ -84,7 +84,7 @@ export async function getCellarStats(db: D1Database) {
         db.prepare(`
             SELECT Location AS location, COUNT(*) AS bottles_total
             FROM bottles
-            WHERE Location IS NOT NULL AND Location != ''
+            WHERE BottleState = 1 AND Location IS NOT NULL AND Location != ''
             GROUP BY Location
             ORDER BY bottles_total DESC
             LIMIT 100

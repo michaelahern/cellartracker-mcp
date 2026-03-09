@@ -67,19 +67,24 @@ export class CellarTrackerMCP extends McpAgent {
             title: 'Search Bottles',
             description: 'Search individual bottles in your cellar with optional filters. Returns up to 200 bottles with location/bin details.',
             inputSchema: {
-                bottle_state: z.enum(['in_cellar', 'consumed', 'pending_delivery']).optional().describe('Filter by bottle state (default: in_cellar)'),
                 vintage_min: z.number().optional().describe('Minimum vintage year'),
                 vintage_max: z.number().optional().describe('Maximum vintage year'),
-                location: z.string().optional().describe('Filter by storage location (partial match)'),
+                type: z.string().optional().describe('Filter by wine type, e.g. Red, White, Sparkling (partial match)'),
+                varietal: z.string().optional().describe('Filter by varietal/grape (partial match)'),
+                producer: z.string().optional().describe('Filter by producer name (partial match)'),
                 country: z.string().optional().describe('Filter by country (partial match)'),
                 region: z.string().optional().describe('Filter by region (partial match)'),
                 sub_region: z.string().optional().describe('Filter by sub-region (partial match)'),
                 appellation: z.string().optional().describe('Filter by appellation (partial match)'),
-                producer: z.string().optional().describe('Filter by producer name (partial match)'),
-                type: z.string().optional().describe('Filter by wine type, e.g. Red, White, Sparkling (partial match)'),
-                varietal: z.string().optional().describe('Filter by varietal/grape (partial match)'),
-                min_score: z.number().optional().describe('Minimum score from any critic (JD, TWP, VM, WA)'),
-                in_drinking_window: z.boolean().optional().describe('Filter by whether the bottle is currently in its drinking window')
+                designation: z.string().optional().describe('Filter by designation (partial match)'),
+                vineyard: z.string().optional().describe('Filter by vineyard (partial match)'),
+                min_score: z.number().optional().describe('Filter by minimum score from any critic (JD: Jeb Dunnuck, TWP: The Wine Palate, VM: Vinous, WA: Wine Advocate)'),
+                in_drinking_window: z.boolean().optional().describe('Only show wines currently in their drinking window now'),
+                in_cellar_only: z.boolean().optional().describe('Only show wines in stock in your cellar today and not wines pending delivery'),
+                location: z.string().optional().describe('Filter by storage location (partial match), will only match bottles currently in cellar, use bottle_state_pending_delivery filter to include bottles pending delivery, as these have a null location'),
+                bottle_state_in_cellar: z.boolean().optional().describe('Include bottles currently in cellar (default: true)'),
+                bottle_state_consumed: z.boolean().optional().describe('Include consumed bottles (default: false)'),
+                bottle_state_pending_delivery: z.boolean().optional().describe('Include bottles pending delivery (default: false)')
             }
         }, async (params) => {
             const db = this.env.CELLARTRACKER_DB;

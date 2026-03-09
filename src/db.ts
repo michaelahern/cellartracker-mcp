@@ -193,37 +193,30 @@ export async function getCellarStats(db: D1Database) {
     };
 }
 
-const BOTTLE_STATE_MAP: Record<string, number> = {
-    in_cellar: 1,
-    consumed: 0,
-    pending_delivery: -1
-};
-
 export interface BottleSearchFilters {
-    bottle_state?: string | undefined;
     vintage_min?: number | undefined;
     vintage_max?: number | undefined;
-    location?: string | undefined;
+    type?: string | undefined;
+    varietal?: string | undefined;
+    producer?: string | undefined;
     country?: string | undefined;
     region?: string | undefined;
     sub_region?: string | undefined;
     appellation?: string | undefined;
-    producer?: string | undefined;
-    type?: string | undefined;
-    varietal?: string | undefined;
+    designation?: string | undefined;
+    vineyard?: string | undefined;
     min_score?: number | undefined;
     in_drinking_window?: boolean | undefined;
+    location?: string | undefined;
+    bottle_state_in_cellar?: boolean | undefined;
+    bottle_state_consumed?: boolean | undefined;
+    bottle_state_pending_delivery?: boolean | undefined;
 }
 
 export async function searchBottles(db: D1Database, filters: BottleSearchFilters) {
     const conditions: string[] = [];
     const params: unknown[] = [];
 
-    const stateValue = filters.bottle_state ? BOTTLE_STATE_MAP[filters.bottle_state] : 1;
-    if (stateValue !== undefined) {
-        conditions.push('b.BottleState = ?');
-        params.push(stateValue);
-    }
     if (filters.vintage_min !== undefined) {
         conditions.push('b.Vintage >= ?');
         params.push(filters.vintage_min);
@@ -232,9 +225,17 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
         conditions.push('b.Vintage <= ?');
         params.push(filters.vintage_max);
     }
-    if (filters.location) {
-        conditions.push('(b.Location LIKE ? OR (b.BottleState = -1 AND b.Location = \'(n/a)\' AND \'(pending)\' LIKE ?))');
-        params.push(`%${filters.location}%`, `%${filters.location}%`);
+    if (filters.type) {
+        conditions.push('b.Type LIKE ?');
+        params.push(`%${filters.type}%`);
+    }
+    if (filters.varietal) {
+        conditions.push('b.Varietal LIKE ?');
+        params.push(`%${filters.varietal}%`);
+    }
+    if (filters.producer) {
+        conditions.push('b.Producer LIKE ?');
+        params.push(`%${filters.producer}%`);
     }
     if (filters.country) {
         conditions.push('b.Country LIKE ?');
@@ -252,17 +253,13 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
         conditions.push('b.Appellation LIKE ?');
         params.push(`%${filters.appellation}%`);
     }
-    if (filters.producer) {
-        conditions.push('b.Producer LIKE ?');
-        params.push(`%${filters.producer}%`);
+    if (filters.designation) {
+        conditions.push('b.Designation LIKE ?');
+        params.push(`%${filters.designation}%`);
     }
-    if (filters.type) {
-        conditions.push('b.Type LIKE ?');
-        params.push(`%${filters.type}%`);
-    }
-    if (filters.varietal) {
-        conditions.push('b.Varietal LIKE ?');
-        params.push(`%${filters.varietal}%`);
+    if (filters.vineyard) {
+        conditions.push('b.Vineyard LIKE ?');
+        params.push(`%${filters.vineyard}%`);
     }
     if (filters.min_score !== undefined) {
         conditions.push('(w.JD >= ? OR twp.Score >= ? OR w.VM >= ? OR wa.Score >= ?)');
@@ -271,12 +268,23 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
     if (filters.in_drinking_window === true) {
         conditions.push('b.BeginConsume IS NOT NULL AND b.EndConsume IS NOT NULL AND b.BeginConsume <= CAST(strftime(\'%Y\', \'now\') AS INTEGER) AND b.EndConsume >= CAST(strftime(\'%Y\', \'now\') AS INTEGER)');
     }
+    if (filters.location) {
+        conditions.push('(b.Location LIKE ?)');
+        params.push(`%${filters.location}%`);
+    }
+
+    const states: number[] = [];
+    if (filters.bottle_state_in_cellar !== false) states.push(1);
+    if (filters.bottle_state_consumed === true) states.push(0);
+    if (filters.bottle_state_pending_delivery === true) states.push(-1);
+    conditions.push(`b.BottleState IN (${states.map(() => '?').join(', ')})`);
+    params.push(...states);
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const sql = `
         SELECT b.Wine AS wine, b.Vintage AS vintage, b.BottleSize AS size,
             CASE b.BottleState WHEN 1 THEN 'in_cellar' WHEN 0 THEN 'consumed' WHEN -1 THEN 'pending_delivery' END AS bottle_state,
-            CASE WHEN b.BottleState = -1 AND b.Location = '(n/a)' THEN '(pending)' ELSE b.Location END AS location,
+            CASE WHEN b.BottleState = -1 THEN NULL ELSE b.Location END AS location,
             (SELECT GROUP_CONCAT(bin_summary, '; ') FROM (SELECT b2.Bin || ' (x' || COUNT(*) || ')' AS bin_summary FROM bottles2 b2 WHERE b2.iWine = b.iWine AND b2.Location = b.Location AND b2.BottleState = b.BottleState GROUP BY b2.Bin)) AS bins,
             COUNT(*) AS bottles_at_location, COALESCE(w.Quantity, 0) AS bottles_in_cellar, COALESCE(w.Quantity, 0) + COALESCE(w.Pending, 0) AS bottles_total,
             b.Country AS country, b.Region AS region, b.SubRegion AS sub_region, b.Appellation AS appellation,

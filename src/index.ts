@@ -45,7 +45,8 @@ export class CellarTrackerMCP extends McpAgent {
                 designation: z.string().optional().describe('Filter by designation (partial match)'),
                 vineyard: z.string().optional().describe('Filter by vineyard (partial match)'),
                 min_score: z.number().optional().describe('Filter by minimum score from any critic (JD: Jeb Dunnuck, TWP: The Wine Palate, VM: Vinous, WA: Wine Advocate)'),
-                in_drinking_window: z.boolean().optional().describe('Only show wines currently in their drinking window now')
+                in_drinking_window: z.boolean().optional().describe('Only show wines currently in their drinking window now'),
+                sort_by: z.enum(['name', 'vintage_asc', 'vintage_desc', 'score_desc', 'drinking_window', 'cost_desc', 'cost_asc']).optional().describe('Sort order for results (default: name)')
             }
         }, async (params) => {
             const db = this.env.CELLARTRACKER_DB;
@@ -82,7 +83,8 @@ export class CellarTrackerMCP extends McpAgent {
                 location: z.string().optional().describe('Filter by storage location (partial match), will only match bottles currently in stock, use bottle_state_pending_delivery filter to include bottles pending delivery, as these have a null location'),
                 bottle_state_in_stock: z.boolean().optional().describe('Include bottles currently in stock or on hand (default: true)'),
                 bottle_state_consumed: z.boolean().optional().describe('Include consumed bottles (default: false)'),
-                bottle_state_pending_delivery: z.boolean().optional().describe('Include bottles pending delivery (default: false)')
+                bottle_state_pending_delivery: z.boolean().optional().describe('Include bottles pending delivery (default: false)'),
+                sort_by: z.enum(['name', 'vintage_asc', 'vintage_desc', 'score_desc', 'drinking_window', 'cost_desc', 'cost_asc']).optional().describe('Sort order for results (default: name)')
             }
         }, async (params) => {
             const db = this.env.CELLARTRACKER_DB;

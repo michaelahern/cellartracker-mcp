@@ -227,7 +227,18 @@ export interface BottleSearchFilters {
     bottle_state_in_stock?: boolean | undefined;
     bottle_state_consumed?: boolean | undefined;
     bottle_state_pending_delivery?: boolean | undefined;
+    sort_by?: string | undefined;
 }
+
+const BOTTLE_SORT_OPTIONS: Record<string, string> = {
+    name: 'b.Wine, b.Vintage',
+    vintage_asc: 'b.Vintage ASC, b.Wine',
+    vintage_desc: 'b.Vintage DESC, b.Wine',
+    score_desc: 'COALESCE(twp.Score, w.JD, w.VM, wa.Score, 0) DESC, b.Wine, b.Vintage',
+    drinking_window: 'b.BeginConsume ASC, b.EndConsume ASC, b.Wine, b.Vintage',
+    cost_desc: 'b.BottleCost DESC, b.Wine, b.Vintage',
+    cost_asc: 'b.BottleCost ASC, b.Wine, b.Vintage'
+};
 
 export async function searchBottles(db: D1Database, filters: BottleSearchFilters) {
     const conditions: string[] = [];
@@ -326,7 +337,7 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
         LEFT JOIN (SELECT iWine, Score, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'Wine Advocate') wa ON w.iWine = wa.iWine AND wa.rn = 1
         ${where}
         GROUP BY b.iWine, b.BottleState, location
-        ORDER BY b.Wine, b.Vintage, b.BottleState, location
+        ORDER BY ${BOTTLE_SORT_OPTIONS[filters.sort_by ?? ''] ?? 'b.Wine, b.Vintage, location'}
         LIMIT 200
         `;
 
@@ -347,7 +358,18 @@ export interface WineSearchFilters {
     vineyard?: string | undefined;
     min_score?: number | undefined;
     in_drinking_window?: boolean | undefined;
+    sort_by?: string | undefined;
 }
+
+const WINE_SORT_OPTIONS: Record<string, string> = {
+    name: 'w.Wine, w.Vintage',
+    vintage_asc: 'w.Vintage ASC, w.Wine',
+    vintage_desc: 'w.Vintage DESC, w.Wine',
+    score_desc: 'COALESCE(twp.Score, w.JD, w.VM, wa.Score, 0) DESC, w.Wine, w.Vintage',
+    drinking_window: 'w.BeginConsume ASC, w.EndConsume ASC, w.Wine, w.Vintage',
+    cost_desc: 'bcost.avg_bottle_cost DESC, w.Wine, w.Vintage',
+    cost_asc: 'bcost.avg_bottle_cost ASC, w.Wine, w.Vintage'
+};
 
 export async function searchWines(db: D1Database, filters: WineSearchFilters) {
     const conditions: string[] = [];
@@ -429,7 +451,7 @@ export async function searchWines(db: D1Database, filters: WineSearchFilters) {
         LEFT JOIN (SELECT iWine, Score, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'The Wine Palate') twp ON w.iWine = twp.iWine AND twp.rn = 1
         LEFT JOIN (SELECT iWine, Score, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'Wine Advocate') wa ON w.iWine = wa.iWine AND wa.rn = 1
         ${where}
-        ORDER BY w.Wine, w.Vintage
+        ORDER BY ${WINE_SORT_OPTIONS[filters.sort_by ?? ''] ?? 'w.Wine, w.Vintage'}
         LIMIT 100
         `;
 

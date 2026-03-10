@@ -324,6 +324,8 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
             b.Country AS country, b.Region AS region, b.SubRegion AS sub_region, b.Appellation AS appellation,
             b.Producer AS producer, b.Type AS type, b.Varietal AS varietal, b.Designation AS designation, b.Vineyard AS vineyard,
             w.JD AS score_jd, twp.Score AS score_twp, twp.ReviewText AS review_twp, w.VM AS score_vm, wa.Score AS score_wa, wa.ReviewText AS review_wa,
+            (SELECT MAX(s) FROM (SELECT w.JD s UNION ALL SELECT twp.Score UNION ALL SELECT w.VM UNION ALL SELECT wa.Score)) AS max_score,
+            (SELECT ROUND(AVG(s), 1) FROM (SELECT w.JD s UNION ALL SELECT twp.Score UNION ALL SELECT w.VM UNION ALL SELECT wa.Score) WHERE s IS NOT NULL) AS avg_score,
             b.BeginConsume AS begin_consume_year, b.EndConsume AS end_consume_year,
             CASE
                 WHEN b.BeginConsume IS NULL OR b.EndConsume IS NULL THEN NULL
@@ -437,6 +439,8 @@ export async function searchWines(db: D1Database, filters: WineSearchFilters) {
             w.Producer AS producer, w.Type AS type, w.Varietal AS varietal, w.Designation AS designation, w.Vineyard AS vineyard,
             '$' || CAST(CAST(ROUND(bcost.avg_bottle_cost) AS INTEGER) AS TEXT) AS avg_bottle_cost,
             w.JD AS score_jd, twp.Score AS score_twp, twp.ReviewText AS review_twp, w.VM AS score_vm, wa.Score AS score_wa, wa.ReviewText AS review_wa,
+            (SELECT MAX(s) FROM (SELECT w.JD s UNION ALL SELECT twp.Score UNION ALL SELECT w.VM UNION ALL SELECT wa.Score)) AS max_score,
+            (SELECT ROUND(AVG(s), 1) FROM (SELECT w.JD s UNION ALL SELECT twp.Score UNION ALL SELECT w.VM UNION ALL SELECT wa.Score) WHERE s IS NOT NULL) AS avg_score,
             w.BeginConsume AS begin_consume_year, w.EndConsume AS end_consume_year,
             CASE
                 WHEN w.BeginConsume IS NULL OR w.EndConsume IS NULL THEN NULL

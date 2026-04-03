@@ -29,8 +29,5 @@
     "typescript": "~6.0",
     "typescript-eslint": "^8",
     "wrangler": "^4"
-  },
-  "engines": {
-    "node": ">=24"
   }
 }

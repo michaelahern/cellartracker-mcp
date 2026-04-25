@@ -13,7 +13,7 @@
     "lint-fix": "eslint --max-warnings=0 --fix"
   },
   "dependencies": {
-    "agents": "~0.8",
+    "agents": "~0.11",
     "papaparse": "^5"
   },
   "devDependencies": {

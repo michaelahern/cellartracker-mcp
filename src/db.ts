@@ -311,7 +311,7 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
     }
 
     const states: number[] = [];
-    if (filters.bottle_state_in_stock === true) states.push(1);
+    if (filters.bottle_state_in_stock !== false) states.push(1);
     if (filters.bottle_state_consumed === true || filters.consumed_before !== undefined || filters.consumed_after !== undefined) states.push(0);
     if (filters.bottle_state_pending_delivery === true) states.push(-1);
     conditions.push(`(b.BottleState IN (${states.map(() => '?').join(', ')}))`);

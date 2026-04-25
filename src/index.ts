@@ -84,8 +84,8 @@ export class CellarTrackerMCP extends McpAgent {
                 bottle_state_in_stock: z.boolean().optional().describe('Include bottles currently in stock or on hand (default: true)'),
                 bottle_state_consumed: z.boolean().optional().describe('Include consumed bottles (default: false)'),
                 bottle_state_pending_delivery: z.boolean().optional().describe('Include bottles pending delivery (default: false)'),
-                consumed_before: z.string().optional().describe('Filter by consumption date on or before (YYYY-MM-DD), implies bottle_state_consumed: true'),
-                consumed_after: z.string().optional().describe('Filter by consumption date on or after (YYYY-MM-DD), implies bottle_state_consumed: true'),
+                consumed_before: z.iso.date().optional().describe('Filter by consumption date on or before (YYYY-MM-DD), implies bottle_state_consumed: true'),
+                consumed_after: z.iso.date().optional().describe('Filter by consumption date on or after (YYYY-MM-DD), implies bottle_state_consumed: true'),
                 sort_by: z.enum(['name', 'vintage_asc', 'vintage_desc', 'score_desc', 'drinking_window', 'cost_desc', 'cost_asc']).optional().describe('Sort order for results (default: name)')
             }
         }, async (params) => {

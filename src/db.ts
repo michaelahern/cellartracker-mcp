@@ -460,8 +460,8 @@ export async function searchWines(db: D1Database, filters: WineSearchFilters) {
             END AS drinking_window_status
         FROM wines w
         LEFT JOIN (SELECT iWine, MIN(DeliveryDate) AS next_delivery_date FROM bottles WHERE BottleState = -1 GROUP BY iWine) bp ON w.iWine = bp.iWine
-        LEFT JOIN (SELECT iWine, MIN(ConsumptionDate) AS last_consumed_date FROM bottles WHERE BottleState = 0 GROUP BY iWine) bc ON w.iWine = bc.iWine
-        LEFT JOIN (SELECT iWine, MIN(BottleCost) AS avg_bottle_cost FROM bottles WHERE BottleState IN (-1, 1) AND BottleCost IS NOT NULL AND BottleCost != 0 GROUP BY iWine) bcost ON w.iWine = bcost.iWine
+        LEFT JOIN (SELECT iWine, MAX(ConsumptionDate) AS last_consumed_date FROM bottles WHERE BottleState = 0 GROUP BY iWine) bc ON w.iWine = bc.iWine
+        LEFT JOIN (SELECT iWine, AVG(BottleCost) AS avg_bottle_cost FROM bottles WHERE BottleState IN (-1, 1) AND BottleCost IS NOT NULL AND BottleCost != 0 GROUP BY iWine) bcost ON w.iWine = bcost.iWine
         LEFT JOIN (SELECT iWine, Score, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'The Wine Palate') twp ON w.iWine = twp.iWine AND twp.rn = 1
         LEFT JOIN (SELECT iWine, Score, ReviewText, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'Wine Advocate') wa ON w.iWine = wa.iWine AND wa.rn = 1
         ${where}

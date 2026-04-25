@@ -80,50 +80,28 @@ export async function truncateAndInsertReviews(db: D1Database, rows: Record<stri
     return truncateAndInsert(db, 'reviews', REVIEW_COLUMNS, rows);
 }
 
-export interface CellarStatsFilters {
-    location?: string | undefined;
-}
-
-export async function getCellarStats(db: D1Database, filters: CellarStatsFilters = {}) {
-    const loc = filters.location ? `%${filters.location}%` : '%';
-
-    // Every ? binds the same loc param; helper takes a count of how many ?s in the query
-    const bind = (sql: string, paramCount: number): D1PreparedStatement => {
-        return db.prepare(sql).bind(...Array(paramCount).fill(loc));
-    };
-
-    // Reusable subquery: filters wines to those with bottles matching the location
-    // With loc='%', COALESCE(Location, '') LIKE '%' matches everything (no-op)
-    const wineAtLocation = (prefix: string) =>
-        `${prefix}iWine IN (SELECT DISTINCT iWine FROM bottles WHERE COALESCE(Location, '') LIKE ? AND BottleState = 1)`;
-
+export async function getCellarStats(db: D1Database) {
     const results = await db.batch<Record<string, unknown>>([
-        // 0: Totals (4 params: cellar value, consumed, purchased bottle subqueries + main wine filter)
-        bind(`
+        db.prepare(`
             SELECT
                 COALESCE(SUM(Quantity), 0) AS bottles_in_stock,
                 COALESCE(SUM(Pending), 0) AS bottles_pending_delivery,
                 COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_in_cellar,
                 COUNT(*) AS unique_wines_in_cellar,
-                '$' || CAST(CAST(ROUND((SELECT SUM(BottleCost) FROM bottles WHERE BottleState IN (1, -1) AND COALESCE(Location, '') LIKE ?)) AS INTEGER) AS TEXT) AS total_cellar_value,
-                (SELECT COUNT(*) FROM bottles WHERE BottleState = 0 AND COALESCE(Location, '') LIKE ?) AS bottles_consumed,
-                (SELECT COUNT(*) FROM bottles WHERE COALESCE(Location, '') LIKE ?) AS bottles_purchased
+                '$' || CAST(CAST(ROUND((SELECT SUM(BottleCost) FROM bottles WHERE (BottleState = 1 OR BottleState = -1))) AS INTEGER) AS TEXT) AS total_cellar_value,
+                (SELECT COUNT(*) FROM bottles WHERE BottleState = 0) AS bottles_consumed,
+                (SELECT COUNT(*) FROM bottles) AS bottles_purchased
             FROM wines
-            WHERE ${wineAtLocation('')}
-        `, 4),
-
-        // 1: Locations
-        bind(`
+        `),
+        db.prepare(`
             SELECT Location AS location, COUNT(*) AS bottles_in_stock
             FROM bottles
-            WHERE BottleState = 1 AND Location IS NOT NULL AND Location != '' AND Location LIKE ?
+            WHERE BottleState = 1 AND Location IS NOT NULL AND Location != ''
             GROUP BY Location
             ORDER BY bottles_in_stock DESC
             LIMIT 100
-        `, 1),
-
-        // 2: Drinking windows
-        bind(`
+        `),
+        db.prepare(`
             SELECT
                 CASE
                     WHEN EndConsume < CAST(strftime('%Y', 'now') AS INTEGER) THEN 'past'
@@ -134,23 +112,19 @@ export async function getCellarStats(db: D1Database, filters: CellarStatsFilters
                 COALESCE(SUM(Quantity), 0) AS bottles_in_stock,
                 COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_in_cellar
             FROM wines
-            WHERE BeginConsume IS NOT NULL AND EndConsume IS NOT NULL AND ${wineAtLocation('')}
+            WHERE BeginConsume IS NOT NULL AND EndConsume IS NOT NULL
             GROUP BY window
             ORDER BY window ASC
-        `, 1),
-
-        // 3: Types
-        bind(`
+        `),
+        db.prepare(`
             SELECT Type AS type, COALESCE(SUM(Quantity), 0) AS bottles_in_stock, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_in_cellar
             FROM wines
-            WHERE Type IS NOT NULL AND Type != '' AND Type != 'Unknown' AND ${wineAtLocation('')}
+            WHERE Type IS NOT NULL AND Type != '' AND Type != 'Unknown'
             GROUP BY Type
             ORDER BY bottles_in_cellar DESC
             LIMIT 100
-        `, 1),
-
-        // 4: Varietals
-        bind(`
+        `),
+        db.prepare(`
             SELECT w.Varietal AS varietal, COALESCE(SUM(w.Quantity), 0) AS bottles_in_stock, COALESCE(SUM(w.Quantity), 0) + COALESCE(SUM(w.Pending), 0) AS bottles_in_cellar,
                 '$' || CAST(CAST(ROUND(SUM(bc.cost_sum) * 1.0 / SUM(bc.bottle_count)) AS INTEGER) AS TEXT) AS avg_bottle_cost,
                 ROUND(AVG(CASE WHEN w.JD IS NOT NULL THEN w.JD END), 1) AS avg_score_jd, ROUND(AVG(CASE WHEN twp.Score IS NOT NULL THEN twp.Score END), 1) AS avg_score_twp,
@@ -158,14 +132,12 @@ export async function getCellarStats(db: D1Database, filters: CellarStatsFilters
             FROM wines w
             LEFT JOIN (SELECT iWine, Score, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'The Wine Palate') twp ON w.iWine = twp.iWine AND twp.rn = 1
             LEFT JOIN (SELECT iWine, SUM(BottleCost) AS cost_sum, COUNT(BottleCost) AS bottle_count FROM bottles WHERE BottleState IN (-1, 1) AND BottleCost IS NOT NULL AND BottleCost != 0 GROUP BY iWine) bc ON w.iWine = bc.iWine
-            WHERE w.Varietal IS NOT NULL AND w.Varietal != '' AND w.Varietal != 'Unknown' AND ${wineAtLocation('w.')}
+            WHERE w.Varietal IS NOT NULL AND w.Varietal != '' AND w.Varietal != 'Unknown'
             GROUP BY w.Varietal
             ORDER BY bottles_in_cellar DESC
             LIMIT 100
-        `, 1),
-
-        // 5: Producers
-        bind(`
+        `),
+        db.prepare(`
             SELECT w.Producer AS producer, COALESCE(SUM(w.Quantity), 0) AS bottles_in_stock, COALESCE(SUM(w.Quantity), 0) + COALESCE(SUM(w.Pending), 0) AS bottles_in_cellar,
                 '$' || CAST(CAST(ROUND(SUM(bc.cost_sum) * 1.0 / SUM(bc.bottle_count)) AS INTEGER) AS TEXT) AS avg_bottle_cost,
                 ROUND(AVG(CASE WHEN w.JD IS NOT NULL THEN w.JD END), 1) AS avg_score_jd, ROUND(AVG(CASE WHEN twp.Score IS NOT NULL THEN twp.Score END), 1) AS avg_score_twp,
@@ -173,51 +145,43 @@ export async function getCellarStats(db: D1Database, filters: CellarStatsFilters
             FROM wines w
             LEFT JOIN (SELECT iWine, Score, ROW_NUMBER() OVER (PARTITION BY iWine ORDER BY ReviewDate DESC) AS rn FROM reviews WHERE Publication = 'The Wine Palate') twp ON w.iWine = twp.iWine AND twp.rn = 1
             LEFT JOIN (SELECT iWine, SUM(BottleCost) AS cost_sum, COUNT(BottleCost) AS bottle_count FROM bottles WHERE BottleState IN (-1, 1) AND BottleCost IS NOT NULL AND BottleCost != 0 GROUP BY iWine) bc ON w.iWine = bc.iWine
-            WHERE w.Producer IS NOT NULL AND w.Producer != '' AND w.Producer != 'Unknown' AND ${wineAtLocation('w.')}
+            WHERE w.Producer IS NOT NULL AND w.Producer != '' AND w.Producer != 'Unknown'
             GROUP BY w.Producer
             ORDER BY bottles_in_cellar DESC
             LIMIT 100
-        `, 1),
-
-        // 6: Countries
-        bind(`
+        `),
+        db.prepare(`
             SELECT Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_stock, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_in_cellar
             FROM wines
-            WHERE Country IS NOT NULL AND Country != '' AND Country != 'Unknown' AND ${wineAtLocation('')}
+            WHERE Country IS NOT NULL AND Country != '' AND Country != 'Unknown'
             GROUP BY Country
             ORDER BY bottles_in_cellar DESC
             LIMIT 50
-        `, 1),
-
-        // 7: Regions
-        bind(`
+        `),
+        db.prepare(`
             SELECT Region AS region, Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_stock, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_in_cellar
             FROM wines
-            WHERE Region IS NOT NULL AND Region != '' AND Region != 'Unknown' AND ${wineAtLocation('')}
+            WHERE Region IS NOT NULL AND Region != '' AND Region != 'Unknown'
             GROUP BY Region
             ORDER BY bottles_in_cellar DESC
             LIMIT 50
-        `, 1),
-
-        // 8: Sub-regions
-        bind(`
+        `),
+        db.prepare(`
             SELECT SubRegion AS sub_region, Region AS region, Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_stock, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_in_cellar
             FROM wines
-            WHERE SubRegion IS NOT NULL AND SubRegion != '' AND SubRegion != 'Unknown' AND ${wineAtLocation('')}
+            WHERE SubRegion IS NOT NULL AND SubRegion != '' AND SubRegion != 'Unknown'
             GROUP BY SubRegion
             ORDER BY bottles_in_cellar DESC
             LIMIT 50
-        `, 1),
-
-        // 9: Appellations
-        bind(`
+        `),
+        db.prepare(`
             SELECT Appellation AS appellation, SubRegion AS sub_region, Region AS region, Country AS country, COALESCE(SUM(Quantity), 0) AS bottles_in_stock, COALESCE(SUM(Quantity), 0) + COALESCE(SUM(Pending), 0) AS bottles_in_cellar
             FROM wines
-            WHERE Appellation IS NOT NULL AND Appellation != '' AND Appellation != 'Unknown' AND ${wineAtLocation('')}
+            WHERE Appellation IS NOT NULL AND Appellation != '' AND Appellation != 'Unknown'
             GROUP BY Appellation
             ORDER BY bottles_in_cellar DESC
             LIMIT 50
-        `, 1)
+        `)
     ]);
 
     const totals = results[0] ?? { results: [] };
@@ -263,8 +227,6 @@ export interface BottleSearchFilters {
     bottle_state_in_stock?: boolean | undefined;
     bottle_state_consumed?: boolean | undefined;
     bottle_state_pending_delivery?: boolean | undefined;
-    consumed_after?: string | undefined;
-    consumed_before?: string | undefined;
     sort_by?: string | undefined;
 }
 
@@ -337,19 +299,10 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
         conditions.push('(b.Location LIKE ?)');
         params.push(`%${filters.location}%`);
     }
-    if (filters.consumed_after) {
-        conditions.push('b.ConsumptionDate >= ?');
-        params.push(filters.consumed_after);
-    }
-    if (filters.consumed_before) {
-        conditions.push('b.ConsumptionDate <= ?');
-        params.push(filters.consumed_before);
-    }
 
-    const hasConsumedDateFilter = filters.consumed_after !== undefined || filters.consumed_before !== undefined;
     const states: number[] = [];
-    if (hasConsumedDateFilter ? filters.bottle_state_in_stock === true : filters.bottle_state_in_stock !== false) states.push(1);
-    if (filters.bottle_state_consumed === true || hasConsumedDateFilter) states.push(0);
+    if (filters.bottle_state_in_stock !== false) states.push(1);
+    if (filters.bottle_state_consumed === true) states.push(0);
     if (filters.bottle_state_pending_delivery === true) states.push(-1);
     conditions.push(`b.BottleState IN (${states.map(() => '?').join(', ')})`);
     params.push(...states);

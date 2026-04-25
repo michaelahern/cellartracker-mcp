@@ -20,13 +20,10 @@ export class CellarTrackerMCP extends McpAgent {
     async init() {
         this.server.registerTool('get_cellar_stats', {
             title: 'Cellar Statistics',
-            description: 'Get aggregate statistics about your cellar, including bottles, locations, drinking windows, types, varietals, producers, countries, regions, sub-regions, and appellations. Use filters to drill down into a specific location, varietal, producer, etc.',
-            inputSchema: {
-                location: z.string().optional().describe('Filter stats to wines stored at this location (partial match)')
-            }
-        }, async (params) => {
+            description: 'Get aggregate statistics about your cellar, including bottles, locations, drinking windows, types, varietals, producers, countries, regions, sub-regions, and appellations.'
+        }, async () => {
             const db = this.env.CELLARTRACKER_DB;
-            const stats = await getCellarStats(db, params);
+            const stats = await getCellarStats(db);
             return {
                 content: [{ type: 'text', text: JSON.stringify(stats, null, 2) }]
             };
@@ -87,8 +84,6 @@ export class CellarTrackerMCP extends McpAgent {
                 bottle_state_in_stock: z.boolean().optional().describe('Include bottles currently in stock or on hand (default: true)'),
                 bottle_state_consumed: z.boolean().optional().describe('Include consumed bottles (default: false)'),
                 bottle_state_pending_delivery: z.boolean().optional().describe('Include bottles pending delivery (default: false)'),
-                consumed_after: z.string().optional().describe('Filter by consumption date on or after (YYYY-MM-DD), implies bottle_state_consumed: true'),
-                consumed_before: z.string().optional().describe('Filter by consumption date on or before (YYYY-MM-DD), implies bottle_state_consumed: true'),
                 sort_by: z.enum(['name', 'vintage_asc', 'vintage_desc', 'score_desc', 'drinking_window', 'cost_desc', 'cost_asc']).optional().describe('Sort order for results (default: name)')
             }
         }, async (params) => {

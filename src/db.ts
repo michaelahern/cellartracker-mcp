@@ -227,6 +227,8 @@ export interface BottleSearchFilters {
     bottle_state_in_stock?: boolean | undefined;
     bottle_state_consumed?: boolean | undefined;
     bottle_state_pending_delivery?: boolean | undefined;
+    consumed_before?: string | undefined;
+    consumed_after?: string | undefined;
     sort_by?: string | undefined;
 }
 
@@ -245,47 +247,47 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
     const params: unknown[] = [];
 
     if (filters.vintage_min !== undefined) {
-        conditions.push('b.Vintage >= ?');
+        conditions.push('(b.Vintage >= ?)');
         params.push(filters.vintage_min);
     }
     if (filters.vintage_max !== undefined) {
-        conditions.push('b.Vintage <= ?');
+        conditions.push('(b.Vintage <= ?)');
         params.push(filters.vintage_max);
     }
     if (filters.type) {
-        conditions.push('b.Type LIKE ?');
+        conditions.push('(b.Type LIKE ?)');
         params.push(`%${filters.type}%`);
     }
     if (filters.varietal) {
-        conditions.push('b.Varietal LIKE ?');
+        conditions.push('(b.Varietal LIKE ?)');
         params.push(`%${filters.varietal}%`);
     }
     if (filters.producer) {
-        conditions.push('b.Producer LIKE ?');
+        conditions.push('(b.Producer LIKE ?)');
         params.push(`%${filters.producer}%`);
     }
     if (filters.country) {
-        conditions.push('b.Country LIKE ?');
+        conditions.push('(b.Country LIKE ?)');
         params.push(`%${filters.country}%`);
     }
     if (filters.region) {
-        conditions.push('b.Region LIKE ?');
+        conditions.push('(b.Region LIKE ?)');
         params.push(`%${filters.region}%`);
     }
     if (filters.sub_region) {
-        conditions.push('b.SubRegion LIKE ?');
+        conditions.push('(b.SubRegion LIKE ?)');
         params.push(`%${filters.sub_region}%`);
     }
     if (filters.appellation) {
-        conditions.push('b.Appellation LIKE ?');
+        conditions.push('(b.Appellation LIKE ?)');
         params.push(`%${filters.appellation}%`);
     }
     if (filters.designation) {
-        conditions.push('b.Designation LIKE ?');
+        conditions.push('(b.Designation LIKE ?)');
         params.push(`%${filters.designation}%`);
     }
     if (filters.vineyard) {
-        conditions.push('b.Vineyard LIKE ?');
+        conditions.push('(b.Vineyard LIKE ?)');
         params.push(`%${filters.vineyard}%`);
     }
     if (filters.min_score !== undefined) {
@@ -293,18 +295,26 @@ export async function searchBottles(db: D1Database, filters: BottleSearchFilters
         params.push(filters.min_score, filters.min_score, filters.min_score, filters.min_score);
     }
     if (filters.in_drinking_window === true) {
-        conditions.push('b.BeginConsume IS NOT NULL AND b.EndConsume IS NOT NULL AND b.BeginConsume <= CAST(strftime(\'%Y\', \'now\') AS INTEGER) AND b.EndConsume >= CAST(strftime(\'%Y\', \'now\') AS INTEGER)');
+        conditions.push('(b.BeginConsume IS NOT NULL AND b.EndConsume IS NOT NULL AND b.BeginConsume <= CAST(strftime(\'%Y\', \'now\') AS INTEGER) AND b.EndConsume >= CAST(strftime(\'%Y\', \'now\') AS INTEGER))');
     }
     if (filters.location) {
         conditions.push('(b.Location LIKE ?)');
         params.push(`%${filters.location}%`);
     }
+    if (filters.consumed_before) {
+        conditions.push('(b.ConsumptionDate <= ?)');
+        params.push(filters.consumed_before);
+    }
+    if (filters.consumed_after) {
+        conditions.push('(b.ConsumptionDate >= ?)');
+        params.push(filters.consumed_after);
+    }
 
     const states: number[] = [];
-    if (filters.bottle_state_in_stock !== false) states.push(1);
-    if (filters.bottle_state_consumed === true) states.push(0);
+    if (filters.bottle_state_in_stock === true) states.push(1);
+    if (filters.bottle_state_consumed === true || filters.consumed_before !== undefined || filters.consumed_after !== undefined) states.push(0);
     if (filters.bottle_state_pending_delivery === true) states.push(-1);
-    conditions.push(`b.BottleState IN (${states.map(() => '?').join(', ')})`);
+    conditions.push(`(b.BottleState IN (${states.map(() => '?').join(', ')}))`);
     params.push(...states);
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
